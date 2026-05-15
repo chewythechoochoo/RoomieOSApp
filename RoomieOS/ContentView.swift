@@ -1148,6 +1148,63 @@ private enum HybridTab: Int, CaseIterable, Identifiable {
         case .expenses: "chart.line.uptrend.xyaxis"
         }
     }
+
+    var accent: Color {
+        switch self {
+        case .inbox: .sky
+        case .expenses: .mint
+        }
+    }
+}
+
+// Sticker-styled bottom tab bar. Pairs with `.tabViewStyle(.page)` above so
+// swiping horizontally and tapping a tab both update the same selection.
+private struct StickerTabBar: View {
+    @Binding var selection: HybridTab
+    @Namespace private var pillNamespace
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(HybridTab.allCases) { tab in
+                let isSelected = selection == tab
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                        selection = tab
+                    }
+                } label: {
+                    VStack(spacing: 2) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 19, weight: .semibold))
+                            .scaleEffect(isSelected ? 1.05 : 1)
+                        Text(tab.title)
+                            .font(.gaegu(size: 14))
+                    }
+                    .foregroundStyle(isSelected ? Color.ink : Color.pencil)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        Group {
+                            if isSelected {
+                                Capsule()
+                                    .fill(tab.accent.opacity(0.55))
+                                    .overlay(Capsule().stroke(Color.ink.opacity(0.55), lineWidth: 1.5))
+                                    .matchedGeometryEffect(id: "pill", in: pillNamespace)
+                            }
+                        }
+                    )
+                }
+                .buttonStyle(SoftPressStyle())
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.paperSurface)
+        .overlay(
+            Rectangle().fill(Color.ink.opacity(0.12)).frame(height: 1),
+            alignment: .top
+        )
+    }
 }
 
 private enum ComposerMode: String, CaseIterable, Identifiable {
@@ -1209,41 +1266,41 @@ private struct HybridWorkspaceShell: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            TabView(selection: $selectedTab) {
-                NavigationStack {
-                    HybridInboxView(
-                        householdName: householdName,
-                        pages: pages,
-                        rootPageIDs: rootPageIDs,
-                        chores: chores,
-                        expenses: expenses,
-                        onCreatePage: onCreatePage
-                    )
-                    .navigationDestination(for: UUID.self) { pageID in
-                        destination(for: pageID)
-                    }
-                }
-                .tabItem {
-                    Label(HybridTab.inbox.title, systemImage: HybridTab.inbox.icon)
-                }
-                .tag(HybridTab.inbox)
-
-                NavigationStack {
-                    ExpenseAnalyticsView(
-                        expenses: expenses,
-                        roommates: roommates,
-                        onAddExpense: {
-                            onRunCommand(.newExpense)
+            VStack(spacing: 0) {
+                TabView(selection: $selectedTab) {
+                    NavigationStack {
+                        HybridInboxView(
+                            householdName: householdName,
+                            pages: pages,
+                            rootPageIDs: rootPageIDs,
+                            chores: chores,
+                            expenses: expenses,
+                            onCreatePage: onCreatePage
+                        )
+                        .navigationDestination(for: UUID.self) { pageID in
+                            destination(for: pageID)
                         }
-                    )
+                    }
+                    .tag(HybridTab.inbox)
+
+                    NavigationStack {
+                        ExpenseAnalyticsView(
+                            expenses: expenses,
+                            roommates: roommates,
+                            onAddExpense: {
+                                onRunCommand(.newExpense)
+                            }
+                        )
+                    }
+                    .tag(HybridTab.expenses)
                 }
-                .tabItem {
-                    Label(HybridTab.expenses.title, systemImage: HybridTab.expenses.icon)
-                }
-                .tag(HybridTab.expenses)
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .tint(Color.imessage)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selectedTab)
+
+                StickerTabBar(selection: $selectedTab)
             }
-            .tint(Color.imessage)
-            .ignoresSafeArea(.keyboard, edges: .bottom)
 
             VStack(spacing: 10) {
                 if let toastMessage {
@@ -1254,7 +1311,7 @@ private struct HybridWorkspaceShell: View {
                         ))
                 }
             }
-            .padding(.bottom, 82)
+            .padding(.bottom, 92)
             .animation(.spring(response: 0.45, dampingFraction: 0.6), value: toastMessage)
         }
         .foregroundStyle(Color.ink)
