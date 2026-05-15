@@ -2,36 +2,118 @@ import SwiftUI
 
 // MARK: - Theme
 //
-// Palette + reusable bits that match the marketing site:
-// cream paper background, ink text, hand-drawn paper cards,
-// sticker buttons. Colors that need to react to day/night use
-// UIColor's dynamic provider so they flip automatically when
-// AppAppearance toggles the color scheme.
+// Palette + reusable bits that match the marketing site: cream paper
+// background, ink text, hand-drawn paper cards, sticker buttons. Several
+// "colorway" themes are available; each defines complementary day + night
+// variants. The user picks one from Settings; the active selection lives in
+// `CurrentTheme.name` and is read by the dynamic UIColor providers below.
+// Forcing the view tree to re-render after the user changes themes is done
+// at the app root with `.id(themeName)`.
+
+enum ColorThemeName: String, CaseIterable, Identifiable {
+    case classic
+    case sunset
+    case garden
+    case twilight
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .classic: "Classic Cream"
+        case .sunset: "Sunset Peach"
+        case .garden: "Garden Mint"
+        case .twilight: "Twilight Lavender"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .classic: "Cream paper, ink, iMessage blue"
+        case .sunset: "Warm peach, plum night, coral accent"
+        case .garden: "Mint paper, forest night, leaf accent"
+        case .twilight: "Lavender paper, indigo night, lilac accent"
+        }
+    }
+
+    fileprivate func paperBg(dark: Bool) -> UIColor {
+        switch self {
+        case .classic:  dark ? hex(0x1B1635) : hex(0xFBF3DE)
+        case .sunset:   dark ? hex(0x2A1B2E) : hex(0xFFE3D0)
+        case .garden:   dark ? hex(0x1A2924) : hex(0xE5F2DE)
+        case .twilight: dark ? hex(0x20183A) : hex(0xE8DDF5)
+        }
+    }
+
+    fileprivate func paperSurface(dark: Bool) -> UIColor {
+        switch self {
+        case .classic:  dark ? hex(0x322B55) : hex(0xFFFCF1)
+        case .sunset:   dark ? hex(0x432942) : hex(0xFFF1E5)
+        case .garden:   dark ? hex(0x2D4138) : hex(0xF4F9E8)
+        case .twilight: dark ? hex(0x382A55) : hex(0xF4ECFA)
+        }
+    }
+
+    fileprivate func ink(dark: Bool) -> UIColor {
+        switch self {
+        case .classic:  dark ? hex(0xF4E9C9) : hex(0x2A2440)
+        case .sunset:   dark ? hex(0xF6E5DA) : hex(0x3A1F2C)
+        case .garden:   dark ? hex(0xDCEDD7) : hex(0x1F3320)
+        case .twilight: dark ? hex(0xE8DDF5) : hex(0x2D2247)
+        }
+    }
+
+    fileprivate func pencil(dark: Bool) -> UIColor {
+        switch self {
+        case .classic:  dark ? hex(0xC9C2E0) : hex(0x5B5570)
+        case .sunset:   dark ? hex(0xDCBFC8) : hex(0x6E4A56)
+        case .garden:   dark ? hex(0xBCD5BC) : hex(0x4D6B4E)
+        case .twilight: dark ? hex(0xC9BAE0) : hex(0x5C4D78)
+        }
+    }
+
+    private func hex(_ value: UInt32) -> UIColor {
+        UIColor(
+            red: CGFloat((value >> 16) & 0xFF) / 255,
+            green: CGFloat((value >> 8) & 0xFF) / 255,
+            blue: CGFloat(value & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+}
+
+// The currently-active theme. Mutated when the user picks a different theme
+// in Settings; the app's root view also tags itself with `.id(themeName)` so
+// SwiftUI tears down and rebuilds the view tree, causing the Color
+// extensions below to re-evaluate against the new palette.
+fileprivate enum CurrentTheme {
+    static var name: ColorThemeName = .classic
+}
 
 private extension Color {
-    static let paperBg = Color(UIColor { trait in
-        trait.userInterfaceStyle == .dark
-            ? UIColor(red: 0x1B / 255, green: 0x16 / 255, blue: 0x35 / 255, alpha: 1)
-            : UIColor(red: 0xFB / 255, green: 0xF3 / 255, blue: 0xDE / 255, alpha: 1)
-    })
+    static var paperBg: Color {
+        Color(UIColor { trait in
+            CurrentTheme.name.paperBg(dark: trait.userInterfaceStyle == .dark)
+        })
+    }
 
-    static let paperSurface = Color(UIColor { trait in
-        trait.userInterfaceStyle == .dark
-            ? UIColor(red: 0x32 / 255, green: 0x2B / 255, blue: 0x55 / 255, alpha: 1)
-            : UIColor(red: 0xFF / 255, green: 0xFC / 255, blue: 0xF1 / 255, alpha: 1)
-    })
+    static var paperSurface: Color {
+        Color(UIColor { trait in
+            CurrentTheme.name.paperSurface(dark: trait.userInterfaceStyle == .dark)
+        })
+    }
 
-    static let ink = Color(UIColor { trait in
-        trait.userInterfaceStyle == .dark
-            ? UIColor(red: 0xF4 / 255, green: 0xE9 / 255, blue: 0xC9 / 255, alpha: 1)
-            : UIColor(red: 0x2A / 255, green: 0x24 / 255, blue: 0x40 / 255, alpha: 1)
-    })
+    static var ink: Color {
+        Color(UIColor { trait in
+            CurrentTheme.name.ink(dark: trait.userInterfaceStyle == .dark)
+        })
+    }
 
-    static let pencil = Color(UIColor { trait in
-        trait.userInterfaceStyle == .dark
-            ? UIColor(red: 0xC9 / 255, green: 0xC2 / 255, blue: 0xE0 / 255, alpha: 1)
-            : UIColor(red: 0x5B / 255, green: 0x55 / 255, blue: 0x70 / 255, alpha: 1)
-    })
+    static var pencil: Color {
+        Color(UIColor { trait in
+            CurrentTheme.name.pencil(dark: trait.userInterfaceStyle == .dark)
+        })
+    }
 
     // Sticker pastels — stay vibrant in both themes.
     static let butter = Color(red: 0xFF / 255, green: 0xE3 / 255, blue: 0x8A / 255)
@@ -281,14 +363,20 @@ private extension View {
     }
 }
 
-private enum AppAppearance {
+private enum AppAppearance: String, CaseIterable, Identifiable {
     case light
     case dark
+    case system
 
-    var colorScheme: ColorScheme {
+    var id: String { rawValue }
+
+    // Nil means "follow the device". The onboarding toggle only flips between
+    // .light and .dark; .system is reached from Settings.
+    var colorScheme: ColorScheme? {
         switch self {
         case .light: .light
         case .dark: .dark
+        case .system: nil
         }
     }
 
@@ -296,6 +384,7 @@ private enum AppAppearance {
         switch self {
         case .light: "Night"
         case .dark: "Day"
+        case .system: "Day"
         }
     }
 
@@ -303,6 +392,15 @@ private enum AppAppearance {
         switch self {
         case .light: "moon.fill"
         case .dark: "sun.max.fill"
+        case .system: "moon.fill"
+        }
+    }
+
+    var settingsTitle: String {
+        switch self {
+        case .light: "Day"
+        case .dark: "Night"
+        case .system: "Match system"
         }
     }
 }
@@ -320,7 +418,35 @@ struct ContentView: View {
     @State private var hasCompletedOnboarding = false
     @State private var isCreateThreadPresented = false
     @State private var toastMessage: String?
-    @State private var appearance: AppAppearance = .light
+
+    // Persisted user preferences. AppStorage keeps the choice across launches.
+    @AppStorage("appearanceMode") private var appearanceRaw: String = AppAppearance.light.rawValue
+    @AppStorage("colorTheme") private var themeRaw: String = ColorThemeName.classic.rawValue
+
+    private var appearance: AppAppearance {
+        get { AppAppearance(rawValue: appearanceRaw) ?? .light }
+    }
+
+    private var themeName: ColorThemeName {
+        get { ColorThemeName(rawValue: themeRaw) ?? .classic }
+    }
+
+    private var appearanceBinding: Binding<AppAppearance> {
+        Binding(
+            get: { AppAppearance(rawValue: appearanceRaw) ?? .light },
+            set: { appearanceRaw = $0.rawValue }
+        )
+    }
+
+    private var themeBinding: Binding<ColorThemeName> {
+        Binding(
+            get: { ColorThemeName(rawValue: themeRaw) ?? .classic },
+            set: {
+                CurrentTheme.name = $0
+                themeRaw = $0.rawValue
+            }
+        )
+    }
 
     var body: some View {
         Group {
@@ -328,7 +454,7 @@ struct ContentView: View {
                 workspaceShell
             } else {
                 OnboardingFlowView(
-                    appearance: $appearance,
+                    appearance: appearanceBinding,
                     onComplete: { seed in
                         applyWorkspace(seed)
                         hasCompletedOnboarding = true
@@ -338,6 +464,11 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(appearance.colorScheme)
+        .onAppear {
+            // Ensure CurrentTheme is in sync with persisted choice on launch.
+            CurrentTheme.name = themeName
+        }
+        .id(themeRaw) // forces a re-render when the user picks a new theme
     }
 
     private var workspaceShell: some View {
@@ -351,6 +482,8 @@ struct ContentView: View {
             roommates: $roommates,
             saveState: $saveState,
             toastMessage: $toastMessage,
+            appearance: appearanceBinding,
+            themeName: themeBinding,
             onCreatePage: { isCreateThreadPresented = true },
             onRunCommand: runCommand,
             onToast: showToast
@@ -389,6 +522,11 @@ struct ContentView: View {
             blocks = [EditorBlock(id: UUID(), kind: .paragraph, text: "", checked: false)]
         case .rules:
             blocks = [EditorBlock(id: UUID(), kind: .heading1, text: cleanedTitle, checked: false)]
+        case .trips:
+            blocks = [
+                EditorBlock(id: UUID(), kind: .heading1, text: cleanedTitle, checked: false),
+                EditorBlock(id: UUID(), kind: .callout, text: "Drop trip ideas. Anyone can chime in.", checked: false)
+            ]
         case .chores, .expenses, .roommates:
             blocks = []
         }
@@ -1237,7 +1375,7 @@ private enum ComposerMode: String, CaseIterable, Identifiable {
 private extension PageKind {
     var composerModes: [ComposerMode] {
         switch self {
-        case .document, .roommates:
+        case .document, .roommates, .trips:
             [.message]
         case .chores:
             [.chore]
@@ -1259,10 +1397,13 @@ private struct HybridWorkspaceShell: View {
     @Binding var roommates: [Roommate]
     @Binding var saveState: SaveState
     @Binding var toastMessage: String?
+    @Binding var appearance: AppAppearance
+    @Binding var themeName: ColorThemeName
     let onCreatePage: () -> Void
     let onRunCommand: (CommandAction) -> Void
     let onToast: (String) -> Void
     @State private var selectedTab: HybridTab = .inbox
+    @State private var isSettingsPresented = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -1275,7 +1416,8 @@ private struct HybridWorkspaceShell: View {
                             rootPageIDs: rootPageIDs,
                             chores: chores,
                             expenses: expenses,
-                            onCreatePage: onCreatePage
+                            onCreatePage: onCreatePage,
+                            onOpenSettings: { isSettingsPresented = true }
                         )
                         .navigationDestination(for: UUID.self) { pageID in
                             destination(for: pageID)
@@ -1315,6 +1457,14 @@ private struct HybridWorkspaceShell: View {
             .animation(.spring(response: 0.45, dampingFraction: 0.6), value: toastMessage)
         }
         .foregroundStyle(Color.ink)
+        .sheet(isPresented: $isSettingsPresented) {
+            SettingsSheet(
+                roommates: $roommates,
+                appearance: $appearance,
+                themeName: $themeName,
+                onToast: onToast
+            )
+        }
     }
 
     @ViewBuilder
@@ -1348,6 +1498,7 @@ private struct HybridInboxView: View {
     let chores: [ChoreRecord]
     let expenses: [ExpenseRecord]
     let onCreatePage: () -> Void
+    let onOpenSettings: () -> Void
 
     private var orderedPages: [WorkspacePage] {
         rootPageIDs.compactMap { id in pages.first { $0.id == id } }
@@ -1395,6 +1546,15 @@ private struct HybridInboxView: View {
         }
         .scrollContentBackground(.hidden)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: onOpenSettings) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.title3)
+                        .foregroundStyle(Color.ink)
+                }
+                .accessibilityLabel("Settings")
+            }
+
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: onCreatePage) {
                     Image(systemName: "plus.circle.fill")
@@ -1425,7 +1585,7 @@ private struct HybridInboxView: View {
 
     private func preview(for page: WorkspacePage) -> String {
         switch page.kind {
-        case .document, .rules:
+        case .document, .rules, .trips:
             page.blocks.first(where: { !$0.text.isEmpty })?.text ?? "Start a note"
         case .chores:
             "\(openChoreCount) chores need attention"
@@ -1443,6 +1603,7 @@ private struct HybridInboxView: View {
         case .rules: ["Rules"]
         case .roommates: ["People"]
         case .document: ["Page"]
+        case .trips: ["Travel"]
         }
     }
 }
@@ -1969,7 +2130,7 @@ private struct HybridThreadView: View {
 
     private var timelineBlocks: [EditorBlock] {
         switch page.kind {
-        case .document, .rules:
+        case .document, .rules, .trips:
             page.blocks
         case .chores:
             [EditorBlock(id: UUID(), kind: .callout, text: "Chores are shared tasks. Tap a row to edit details or mark it done.", checked: false)]
@@ -2706,6 +2867,387 @@ private extension Array {
     }
 }
 
+// MARK: - Settings
+
+private struct SettingsSheet: View {
+    @Binding var roommates: [Roommate]
+    @Binding var appearance: AppAppearance
+    @Binding var themeName: ColorThemeName
+    let onToast: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var isAddRoommatePresented = false
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PaperWashBackground()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 22) {
+                        roommatesSection
+                        appearanceSection
+                        themeSection
+                    }
+                    .padding(18)
+                    .padding(.bottom, 32)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .font(.gaegu(size: 18))
+                        .foregroundStyle(Color.imessage)
+                }
+            }
+            .sheet(isPresented: $isAddRoommatePresented) {
+                AddRoommateSheet(
+                    onCancel: { isAddRoommatePresented = false },
+                    onSave: { name, phone in
+                        roommates.append(Roommate(
+                            id: UUID(),
+                            name: name,
+                            email: "",
+                            phoneNumber: phone,
+                            role: "Roommate"
+                        ))
+                        isAddRoommatePresented = false
+                        onToast("\(name) added")
+                    }
+                )
+            }
+        }
+    }
+
+    private var roommatesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader(icon: "👥", title: "Roommates", subtitle: "Add the people sharing your place.")
+
+            VStack(spacing: 10) {
+                ForEach(roommates) { roommate in
+                    RoommateRow(roommate: roommate) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            roommates.removeAll { $0.id == roommate.id }
+                        }
+                        onToast("\(roommate.name) removed")
+                    }
+                }
+            }
+
+            Button {
+                isAddRoommatePresented = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus")
+                    Text("Add roommate")
+                }
+                .foregroundStyle(Color.white)
+            }
+            .buttonStyle(StickerButtonStyle())
+        }
+    }
+
+    private var appearanceSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader(icon: "🌗", title: "Appearance", subtitle: "Pick how the app should look.")
+
+            VStack(spacing: 8) {
+                ForEach(AppAppearance.allCases) { option in
+                    AppearanceOptionRow(
+                        option: option,
+                        isSelected: appearance == option,
+                        onSelect: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                appearance = option
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    private var themeSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader(icon: "🎨", title: "Colorway", subtitle: "Day + night versions designed to complement each other.")
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
+                ForEach(ColorThemeName.allCases) { theme in
+                    ThemeSwatchCard(
+                        theme: theme,
+                        isSelected: themeName == theme,
+                        onSelect: {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                themeName = theme
+                            }
+                            onToast("\(theme.title) applied")
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    private func sectionHeader(icon: String, title: String, subtitle: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(icon)
+                .font(.system(size: 22))
+                .frame(width: 32, height: 32)
+                .background(Color.butter.opacity(0.55))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.ink.opacity(0.5), lineWidth: 1.5))
+                .rotationEffect(.degrees(-4))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.gaegu(size: 24))
+                    .foregroundStyle(Color.ink)
+                Text(subtitle)
+                    .font(.gaegu(size: 15))
+                    .foregroundStyle(Color.pencil)
+            }
+            Spacer()
+        }
+    }
+}
+
+private struct RoommateRow: View {
+    let roommate: Roommate
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(initials(for: roommate.name))
+                .font(.gaegu(size: 18))
+                .frame(width: 40, height: 40)
+                .background(Color.mint.opacity(0.6))
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.ink.opacity(0.5), lineWidth: 1.5))
+                .foregroundStyle(Color.ink)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(roommate.name)
+                    .font(.gaegu(size: 20))
+                    .foregroundStyle(Color.ink)
+                Text(roommate.phoneNumber.isEmpty ? "No phone yet" : roommate.phoneNumber)
+                    .font(.gaegu(size: 15))
+                    .foregroundStyle(Color.pencil)
+            }
+
+            Spacer()
+
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.coral)
+            }
+            .buttonStyle(SoftPressStyle())
+            .accessibilityLabel("Remove \(roommate.name)")
+        }
+        .padding(12)
+        .paperCard()
+    }
+
+    private func initials(for name: String) -> String {
+        let parts = name.split(separator: " ")
+        let first = parts.first.map { String($0.prefix(1)) } ?? ""
+        let second = parts.dropFirst().first.map { String($0.prefix(1)) } ?? ""
+        return (first + second).uppercased()
+    }
+}
+
+private struct AppearanceOptionRow: View {
+    let option: AppAppearance
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .frame(width: 30)
+                    .foregroundStyle(Color.ink)
+                Text(option.settingsTitle)
+                    .font(.gaegu(size: 20))
+                    .foregroundStyle(Color.ink)
+                Spacer()
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? Color.imessage : Color.pencil.opacity(0.4))
+            }
+            .padding(14)
+            .background(Color.paperSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(isSelected ? Color.imessage : Color.ink.opacity(0.6), lineWidth: isSelected ? 2.5 : 1.5)
+            )
+        }
+        .buttonStyle(SoftPressStyle())
+    }
+
+    private var icon: String {
+        switch option {
+        case .light: "sun.max.fill"
+        case .dark: "moon.fill"
+        case .system: "circle.lefthalf.filled"
+        }
+    }
+}
+
+private struct ThemeSwatchCard: View {
+    let theme: ColorThemeName
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    swatch(dark: false)
+                    swatch(dark: true)
+                    Spacer()
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color.imessage)
+                    }
+                }
+                Text(theme.title)
+                    .font(.gaegu(size: 19))
+                    .foregroundStyle(Color.ink)
+                Text(theme.subtitle)
+                    .font(.gaegu(size: 14))
+                    .foregroundStyle(Color.pencil)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(Color.paperSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(isSelected ? Color.imessage : Color.ink.opacity(0.6), lineWidth: isSelected ? 2.5 : 1.5)
+            )
+            .shadow(color: Color.ink.opacity(isSelected ? 0.18 : 0.08), radius: isSelected ? 12 : 8, x: 0, y: isSelected ? 8 : 4)
+        }
+        .buttonStyle(SoftPressStyle())
+    }
+
+    @ViewBuilder
+    private func swatch(dark: Bool) -> some View {
+        let bg = Color(theme.paperBg(dark: dark))
+        let surface = Color(theme.paperSurface(dark: dark))
+        let ink = Color(theme.ink(dark: dark))
+        ZStack {
+            Circle()
+                .fill(bg)
+                .overlay(Circle().stroke(Color.ink.opacity(0.6), lineWidth: 1.5))
+            Circle()
+                .fill(surface)
+                .frame(width: 16, height: 16)
+                .overlay(Circle().stroke(ink, lineWidth: 1))
+        }
+        .frame(width: 32, height: 32)
+    }
+}
+
+private struct AddRoommateSheet: View {
+    let onCancel: () -> Void
+    let onSave: (String, String) -> Void
+
+    @State private var name = ""
+    @State private var phone = ""
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PaperWashBackground()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("Add a roommate")
+                            .font(.gaegu(size: 30))
+                            .foregroundStyle(Color.ink)
+                        Text("Their info stays on this device for now. Backend coming later.")
+                            .font(.gaegu(size: 17))
+                            .foregroundStyle(Color.pencil)
+
+                        labeled("name") {
+                            TextField("Alex Kim", text: $name)
+                                .font(.gaegu(size: 22))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 12)
+                                .paperCard(radius: 16)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.words)
+                        }
+
+                        labeled("phone number") {
+                            TextField("(555) 010-2201", text: $phone)
+                                .font(.gaegu(size: 22))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 12)
+                                .paperCard(radius: 16)
+                                .keyboardType(.phonePad)
+                        }
+
+                        if let errorMessage {
+                            HStack(spacing: 6) {
+                                Text("⚠️")
+                                Text(errorMessage)
+                                    .font(.gaegu(size: 17))
+                            }
+                            .foregroundStyle(Color.coral)
+                        }
+
+                        HStack(spacing: 14) {
+                            Button("Add", action: validateAndSave)
+                                .buttonStyle(StickerButtonStyle())
+                            Button("Cancel", action: onCancel)
+                                .buttonStyle(StickerButtonStyle(variant: .cream))
+                        }
+                    }
+                    .padding(18)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .navigationTitle("New roommate")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+            }
+        }
+    }
+
+    private func labeled<Content: View>(_ label: String, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label)
+                .font(.gaegu(size: 16))
+                .foregroundStyle(Color.pencil)
+            content()
+        }
+    }
+
+    private func validateAndSave() {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPhone = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedName.isEmpty {
+            errorMessage = "Pop a name in first."
+            return
+        }
+        if trimmedPhone.isEmpty {
+            errorMessage = "Add a phone number too."
+            return
+        }
+        onSave(trimmedName, trimmedPhone)
+    }
+}
+
 private extension PageKind {
     var displayTitle: String {
         switch self {
@@ -2714,6 +3256,7 @@ private extension PageKind {
         case .expenses: "Expenses"
         case .rules: "House Rules"
         case .roommates: "Roommates"
+        case .trips: "Trips"
         }
     }
 
@@ -2724,6 +3267,7 @@ private extension PageKind {
         case .expenses: "💸"
         case .rules: "📜"
         case .roommates: "👥"
+        case .trips: "✈️"
         }
     }
 }

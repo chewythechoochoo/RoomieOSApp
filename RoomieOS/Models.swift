@@ -6,6 +6,7 @@ enum PageKind: String, CaseIterable {
     case expenses
     case rules
     case roommates
+    case trips
 }
 
 enum BlockKind: String, CaseIterable, Identifiable {
@@ -202,6 +203,7 @@ struct WorkspacePageIDs {
     let roommatesID: UUID
     let notesID: UUID
     let guestPolicyID: UUID
+    let tripsID: UUID
 }
 
 struct WorkspaceSeed {
@@ -259,6 +261,7 @@ struct Roommate: Identifiable, Equatable {
     let id: UUID
     var name: String
     var email: String
+    var phoneNumber: String
     var role: String
 }
 
@@ -280,14 +283,15 @@ enum WorkspaceFactory {
             rulesID: UUID(),
             roommatesID: UUID(),
             notesID: UUID(),
-            guestPolicyID: UUID()
+            guestPolicyID: UUID(),
+            tripsID: UUID()
         )
 
         let roommates = [
-            Roommate(id: UUID(), name: "Alex Kim", email: "alex@example.edu", role: "Owner"),
-            Roommate(id: UUID(), name: "Maya Patel", email: "maya@example.edu", role: "Roommate"),
-            Roommate(id: UUID(), name: "Jordan Lee", email: "jordan@example.edu", role: "Roommate"),
-            Roommate(id: UUID(), name: "Priya Shah", email: "priya@example.edu", role: "Roommate")
+            Roommate(id: UUID(), name: "Alex Kim", email: "alex@example.edu", phoneNumber: "(555) 010-2201", role: "Owner"),
+            Roommate(id: UUID(), name: "Maya Patel", email: "maya@example.edu", phoneNumber: "(555) 010-3344", role: "Roommate"),
+            Roommate(id: UUID(), name: "Jordan Lee", email: "jordan@example.edu", phoneNumber: "(555) 010-7782", role: "Roommate"),
+            Roommate(id: UUID(), name: "Priya Shah", email: "priya@example.edu", phoneNumber: "(555) 010-9119", role: "Roommate")
         ]
 
         var chores = starterChores(for: template)
@@ -371,13 +375,23 @@ enum WorkspaceFactory {
                 childIDs: [],
                 blocks: [],
                 isReadOnly: false
+            ),
+            WorkspacePage(
+                id: ids.tripsID,
+                parentID: nil,
+                title: "Trips",
+                icon: "✈️",
+                kind: .trips,
+                childIDs: [],
+                blocks: starterTripBlocks(),
+                isReadOnly: false
             )
         ]
 
         return WorkspaceSeed(
             householdName: householdName,
             pageIDs: ids,
-            rootPageIDs: [ids.homeID, ids.choresID, ids.expensesID, ids.rulesID, ids.roommatesID],
+            rootPageIDs: [ids.homeID, ids.choresID, ids.expensesID, ids.rulesID, ids.tripsID, ids.roommatesID],
             pages: pages,
             chores: chores,
             expenses: expenses,
@@ -453,6 +467,16 @@ enum WorkspaceFactory {
                 EditorBlock(id: UUID(), kind: .paragraph, text: "If you cannot do your assigned chore, swap with someone before the due date.", checked: false)
             ]
         }
+    }
+
+    private static func starterTripBlocks() -> [EditorBlock] {
+        [
+            EditorBlock(id: UUID(), kind: .heading1, text: "Trips we want to take", checked: false),
+            EditorBlock(id: UUID(), kind: .callout, text: "Drop any place you want to visit together. Weekend, summer, someday — all welcome.", checked: false),
+            EditorBlock(id: UUID(), kind: .paragraph, text: "Joshua Tree weekend (camping)", checked: false),
+            EditorBlock(id: UUID(), kind: .paragraph, text: "Big Sur road trip in summer", checked: false),
+            EditorBlock(id: UUID(), kind: .paragraph, text: "Tokyo, eventually 🍜", checked: false)
+        ]
     }
 
     private static func guestOrResetBlocks(for template: StarterTemplate) -> [EditorBlock] {
