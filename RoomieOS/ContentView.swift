@@ -1,5 +1,162 @@
 import SwiftUI
 
+// MARK: - Theme
+//
+// Palette + reusable bits that match the marketing site:
+// cream paper background, ink text, hand-drawn paper cards,
+// sticker buttons. Colors that need to react to day/night use
+// UIColor's dynamic provider so they flip automatically when
+// AppAppearance toggles the color scheme.
+
+private extension Color {
+    static let paperBg = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0x1B / 255, green: 0x16 / 255, blue: 0x35 / 255, alpha: 1)
+            : UIColor(red: 0xFB / 255, green: 0xF3 / 255, blue: 0xDE / 255, alpha: 1)
+    })
+
+    static let paperSurface = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0x32 / 255, green: 0x2B / 255, blue: 0x55 / 255, alpha: 1)
+            : UIColor(red: 0xFF / 255, green: 0xFC / 255, blue: 0xF1 / 255, alpha: 1)
+    })
+
+    static let ink = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0xF4 / 255, green: 0xE9 / 255, blue: 0xC9 / 255, alpha: 1)
+            : UIColor(red: 0x2A / 255, green: 0x24 / 255, blue: 0x40 / 255, alpha: 1)
+    })
+
+    static let pencil = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0xC9 / 255, green: 0xC2 / 255, blue: 0xE0 / 255, alpha: 1)
+            : UIColor(red: 0x5B / 255, green: 0x55 / 255, blue: 0x70 / 255, alpha: 1)
+    })
+
+    // Sticker pastels — stay vibrant in both themes.
+    static let butter = Color(red: 0xFF / 255, green: 0xE3 / 255, blue: 0x8A / 255)
+    static let peach = Color(red: 0xFF / 255, green: 0xC9 / 255, blue: 0xA8 / 255)
+    static let mint = Color(red: 0xC1 / 255, green: 0xE8 / 255, blue: 0xC8 / 255)
+    static let lavender = Color(red: 0xDC / 255, green: 0xC8 / 255, blue: 0xF5 / 255)
+    static let sky = Color(red: 0xBD / 255, green: 0xDE / 255, blue: 0xFF / 255)
+    static let imessage = Color(red: 0x0A / 255, green: 0x84 / 255, blue: 0xFF / 255)
+    static let imessageSoft = Color(red: 0xD6 / 255, green: 0xE9 / 255, blue: 0xFF / 255)
+    static let coral = Color(red: 0xFF / 255, green: 0x9F / 255, blue: 0x8D / 255)
+}
+
+private struct PaperCardModifier: ViewModifier {
+    var tint: Color
+    var stroke: CGFloat
+    var radius: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .background(tint)
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .stroke(Color.ink.opacity(0.85), lineWidth: stroke)
+            )
+            .shadow(color: Color.ink.opacity(0.08), radius: 12, x: 0, y: 8)
+            .shadow(color: Color.ink.opacity(0.05), radius: 0, x: 0, y: 1)
+    }
+}
+
+private extension View {
+    func paperCard(tint: Color = .paperSurface, stroke: CGFloat = 1.5, radius: CGFloat = 22) -> some View {
+        modifier(PaperCardModifier(tint: tint, stroke: stroke, radius: radius))
+    }
+}
+
+private struct StickerButtonStyle: ButtonStyle {
+    enum Variant { case primary, cream }
+    var variant: Variant = .primary
+
+    func makeBody(configuration: Configuration) -> some View {
+        let bg: Color = variant == .primary ? .imessage : .paperSurface
+        let fg: Color = variant == .primary ? .white : .ink
+        let pressed = configuration.isPressed
+        return configuration.label
+            .font(.gaegu(size: 22))
+            .foregroundStyle(fg)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .background(bg)
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(Color.ink.opacity(0.85), lineWidth: 2))
+            .offset(y: pressed ? 2 : 0)
+            .shadow(color: Color.ink.opacity(0.55), radius: 0, x: 0, y: pressed ? 1 : 4)
+            .animation(.spring(response: 0.22, dampingFraction: 0.7), value: pressed)
+    }
+}
+
+private struct SoftPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+}
+
+// Cream paper background with soft pastel washes, mirroring the radial
+// gradients used on the website.
+private struct PaperWashBackground: View {
+    var body: some View {
+        ZStack {
+            Color.paperBg.ignoresSafeArea()
+            GeometryReader { proxy in
+                let w = proxy.size.width
+                let h = proxy.size.height
+                ZStack {
+                    Circle().fill(Color.butter.opacity(0.32))
+                        .frame(width: w * 0.7, height: w * 0.7)
+                        .blur(radius: 80)
+                        .position(x: w * 0.12, y: h * 0.15)
+                    Circle().fill(Color.lavender.opacity(0.32))
+                        .frame(width: w * 0.7, height: w * 0.7)
+                        .blur(radius: 90)
+                        .position(x: w * 0.92, y: h * 0.28)
+                    Circle().fill(Color.mint.opacity(0.28))
+                        .frame(width: w * 0.7, height: w * 0.7)
+                        .blur(radius: 90)
+                        .position(x: w * 0.72, y: h * 0.78)
+                    Circle().fill(Color.peach.opacity(0.30))
+                        .frame(width: w * 0.7, height: w * 0.7)
+                        .blur(radius: 90)
+                        .position(x: w * 0.18, y: h * 0.92)
+                }
+            }
+            .ignoresSafeArea()
+        }
+    }
+}
+
+private struct ScribbleUnderline: View {
+    var color: Color = .imessage
+
+    var body: some View {
+        GeometryReader { proxy in
+            Path { path in
+                let w = proxy.size.width
+                let mid = proxy.size.height / 2
+                path.move(to: CGPoint(x: 0, y: mid))
+                path.addCurve(
+                    to: CGPoint(x: w * 0.5, y: mid + 2),
+                    control1: CGPoint(x: w * 0.18, y: mid - 5),
+                    control2: CGPoint(x: w * 0.34, y: mid + 5)
+                )
+                path.addCurve(
+                    to: CGPoint(x: w, y: mid),
+                    control1: CGPoint(x: w * 0.68, y: mid - 4),
+                    control2: CGPoint(x: w * 0.86, y: mid + 3)
+                )
+            }
+            .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+        }
+        .frame(height: 8)
+    }
+}
+
 private extension Font {
     static func gaegu(size: CGFloat) -> Font {
         .custom("Gaegu-Regular", size: size)
@@ -220,8 +377,7 @@ private struct OnboardingFlowView: View {
 
     var body: some View {
         ZStack {
-            Color(.systemGroupedBackground)
-                .ignoresSafeArea()
+            PaperWashBackground()
 
             VStack(spacing: 0) {
                 OnboardingTopBar(
@@ -233,21 +389,24 @@ private struct OnboardingFlowView: View {
                 )
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 22) {
-                        switch step {
-                        case .welcome:
-                            welcomeScreen
-                        case .intent:
-                            intentScreen
-                        case .household:
-                            householdScreen
-                        case .template:
-                            templateScreen
-                        case .firstAction:
-                            firstActionScreen
-                        case .success:
-                            successScreen
+                    VStack(alignment: .leading, spacing: 24) {
+                        Group {
+                            switch step {
+                            case .welcome:
+                                welcomeScreen
+                            case .intent:
+                                intentScreen
+                            case .household:
+                                householdScreen
+                            case .template:
+                                templateScreen
+                            case .firstAction:
+                                firstActionScreen
+                            case .success:
+                                successScreen
+                            }
                         }
+                        .id(step)
                     }
                     .frame(maxWidth: 720, alignment: .leading)
                     .padding(.horizontal, 24)
@@ -256,6 +415,7 @@ private struct OnboardingFlowView: View {
                 }
             }
         }
+        .foregroundStyle(Color.ink)
     }
 
     private var stepLabel: String {
@@ -269,40 +429,56 @@ private struct OnboardingFlowView: View {
     }
 
     private var welcomeScreen: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("RoomieOS")
-                    .font(.gaegu(size: 46))
-                Text("A calmer way to run a shared apartment.")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-            }
-
+        VStack(alignment: .leading, spacing: 26) {
             VStack(alignment: .leading, spacing: 12) {
-                PreviewPill(icon: "🧹", title: "Chores", detail: "Who is doing what")
-                PreviewPill(icon: "💸", title: "Expenses", detail: "Who paid and who owes")
-                PreviewPill(icon: "📜", title: "House rules", detail: "What everyone agreed to")
-            }
-            .padding()
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                HStack(spacing: 10) {
+                    Text("🏠")
+                        .font(.system(size: 34))
+                        .padding(10)
+                        .background(Color.butter)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color.ink.opacity(0.85), lineWidth: 2))
+                        .rotationEffect(.degrees(-6))
+                        .shadow(color: Color.ink.opacity(0.18), radius: 6, x: 0, y: 4)
+                    Text("a second home from home")
+                        .font(.gaegu(size: 18))
+                        .italic()
+                        .foregroundStyle(Color.pencil)
+                }
 
-            Button("Get started") {
+                Text("RoomieOS")
+                    .font(.gaegu(size: 56))
+                ZStack(alignment: .bottom) {
+                    Text("a calmer way to run a shared apartment.")
+                        .font(.gaegu(size: 22))
+                        .foregroundStyle(Color.pencil)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                PreviewPill(icon: "🧹", title: "Chores", detail: "who's doing what, today")
+                PreviewPill(icon: "💸", title: "Expenses", detail: "who paid, who owes")
+                PreviewPill(icon: "📜", title: "House rules", detail: "what everyone agreed to")
+            }
+            .padding(18)
+            .paperCard()
+
+            Button("Let's get started") {
                 step = .intent
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(StickerButtonStyle())
         }
     }
 
     private var intentScreen: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 22) {
             OnboardingHeader(
-                title: "What do you want to organize first?",
-                subtitle: "We will set up a simple workspace you can change later."
+                title: "what do you want to organize first?",
+                subtitle: "we'll set up a simple little workspace. you can change everything later."
             )
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 12)], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 14)], spacing: 14) {
                 ForEach(OnboardingIntent.allCases) { intent in
                     SelectableCard(
                         title: intent.title,
@@ -335,27 +511,37 @@ private struct OnboardingFlowView: View {
     }
 
     private var householdScreen: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 22) {
             OnboardingHeader(
-                title: "Name your household",
-                subtitle: "Use something your roommates will recognize."
+                title: "name your little place",
+                subtitle: "something your roommates will recognize. you can change it any time."
             )
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Household name")
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("household name")
+                    .font(.gaegu(size: 17))
+                    .foregroundStyle(Color.pencil)
                 TextField("Sixth College Apartment", text: $householdName)
-                    .textFieldStyle(.roundedBorder)
+                    .font(.gaegu(size: 22))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .paperCard(radius: 16)
                     .onSubmit(validateHouseholdAndContinue)
-                HStack {
+                HStack(spacing: 8) {
                     ForEach(["My Apartment", "Dorm Room", "Shared House"], id: \.self) { suggestion in
-                        Button(suggestion) {
+                        Button {
                             householdName = suggestion
+                        } label: {
+                            Text(suggestion)
+                                .font(.gaegu(size: 16))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.butter.opacity(0.55))
+                                .clipShape(Capsule())
+                                .overlay(Capsule().stroke(Color.ink.opacity(0.6), lineWidth: 1.5))
+                                .foregroundStyle(Color.ink)
                         }
-                        .font(.caption)
-                        .buttonStyle(.bordered)
+                        .buttonStyle(SoftPressStyle())
                     }
                 }
             }
@@ -375,10 +561,10 @@ private struct OnboardingFlowView: View {
     }
 
     private var templateScreen: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 22) {
             OnboardingHeader(
-                title: "Start with a useful setup",
-                subtitle: "Templates are editable. Nothing is locked."
+                title: "pick a starter room",
+                subtitle: "templates are fully editable. nothing is locked, mess with it!"
             )
 
             VStack(spacing: 12) {
@@ -405,25 +591,30 @@ private struct OnboardingFlowView: View {
     }
 
     private var firstActionScreen: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 22) {
             OnboardingHeader(title: firstActionTitle, subtitle: firstActionSubtitle)
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text(selectedIntent == .expenses ? "Expense title" : "Title")
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 12) {
+                Text(selectedIntent == .expenses ? "expense title" : "title")
+                    .font(.gaegu(size: 17))
+                    .foregroundStyle(Color.pencil)
                 TextField(firstActionPlaceholder, text: $firstAction.title)
-                    .textFieldStyle(.roundedBorder)
+                    .font(.gaegu(size: 22))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .paperCard(radius: 16)
                     .onSubmit(validateFirstActionAndContinue)
 
                 if selectedIntent == .expenses {
-                    Text("Amount")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.secondary)
+                    Text("amount")
+                        .font(.gaegu(size: 17))
+                        .foregroundStyle(Color.pencil)
                     TextField("60.00", value: $firstAction.amount, format: .number.precision(.fractionLength(2)))
-                        .textFieldStyle(.roundedBorder)
+                        .font(.gaegu(size: 22))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .paperCard(radius: 16)
+                        .keyboardType(.decimalPad)
                 }
             }
 
@@ -438,25 +629,51 @@ private struct OnboardingFlowView: View {
     }
 
     private var successScreen: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 44))
-                .foregroundStyle(.blue)
+        VStack(alignment: .leading, spacing: 22) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(Color.mint)
+                        .frame(width: 80, height: 80)
+                        .overlay(Circle().stroke(Color.ink.opacity(0.85), lineWidth: 2))
+                        .shadow(color: Color.ink.opacity(0.18), radius: 8, x: 0, y: 5)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 38, weight: .bold))
+                        .foregroundStyle(Color.ink)
+                }
+                .rotationEffect(.degrees(-6))
 
-            OnboardingHeader(
-                title: "Your household has a starting point.",
-                subtitle: "RoomieOS is ready with pages for chores, expenses, rules, and roommates."
-            )
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("welcome home!")
+                        .font(.gaegu(size: 34))
+                    Text("your little place is ready 🏠")
+                        .font(.gaegu(size: 19))
+                        .foregroundStyle(Color.pencil)
+                }
+            }
+
+            Text("pages for chores, expenses, house rules, and roommates are set up. you can decorate, rename, or rearrange any of it later.")
+                .font(.gaegu(size: 20))
+                .foregroundStyle(Color.pencil)
+                .padding(.top, 2)
 
             if !firstAction.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                PreviewPill(icon: selectedIntent.icon, title: "Added", detail: firstAction.title)
+                HStack(spacing: 10) {
+                    Text(selectedIntent.icon).font(.system(size: 22))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("added").font(.gaegu(size: 15)).foregroundStyle(Color.pencil)
+                        Text(firstAction.title).font(.gaegu(size: 20))
+                    }
+                    Spacer()
+                }
+                .padding(14)
+                .paperCard(tint: Color.butter.opacity(0.55))
             }
 
             Button("Open workspace") {
                 onComplete(completedSeed ?? WorkspaceFactory.make(householdName: householdName, intent: selectedIntent, template: selectedTemplate))
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(StickerButtonStyle())
         }
     }
 
@@ -570,15 +787,17 @@ private struct OnboardingTopBar: View {
                     onBack()
                 } label: {
                     Label("Back", systemImage: "chevron.left")
+                        .font(.gaegu(size: 18))
+                        .foregroundStyle(Color.ink)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(SoftPressStyle())
             } else {
                 Button(action: onToggleAppearance) {
                     Label(appearance.toggleTitle, systemImage: appearance.toggleIcon)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .font(.gaegu(size: 18))
+                        .foregroundStyle(Color.ink)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(SoftPressStyle())
                 .accessibilityLabel("Switch to \(appearance.toggleTitle.lowercased()) mode")
             }
 
@@ -586,13 +805,18 @@ private struct OnboardingTopBar: View {
         }
         .overlay {
             Text(stepLabel)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+                .font(.gaegu(size: 15))
+                .foregroundStyle(Color.pencil)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 12)
-        .background(.thinMaterial)
+        .background(Color.paperBg.opacity(0.72))
+        .overlay(
+            Rectangle()
+                .fill(Color.ink.opacity(0.12))
+                .frame(height: 1),
+            alignment: .bottom
+        )
     }
 }
 
@@ -601,12 +825,13 @@ private struct OnboardingHeader: View {
     let subtitle: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.gaegu(size: 34))
+                .font(.gaegu(size: 38))
+                .foregroundStyle(Color.ink)
             Text(subtitle)
-                .font(.body)
-                .foregroundStyle(.secondary)
+                .font(.gaegu(size: 20))
+                .foregroundStyle(Color.pencil)
         }
     }
 }
@@ -619,22 +844,23 @@ private struct OnboardingActions: View {
     let onSecondary: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             if let errorMessage {
-                Text(errorMessage)
-                    .font(.subheadline)
-                    .foregroundStyle(.red)
+                HStack(spacing: 8) {
+                    Text("⚠️")
+                    Text(errorMessage)
+                        .font(.gaegu(size: 17))
+                }
+                .foregroundStyle(Color.coral)
             }
 
-            HStack {
+            HStack(spacing: 14) {
                 Button(primaryTitle, action: onPrimary)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .buttonStyle(StickerButtonStyle())
 
                 if let secondaryTitle, let onSecondary {
                     Button(secondaryTitle, action: onSecondary)
-                        .buttonStyle(.borderless)
-                        .controlSize(.large)
+                        .buttonStyle(StickerButtonStyle(variant: .cream))
                 }
             }
         }
@@ -654,35 +880,44 @@ private struct SelectableCard: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text(icon)
-                        .font(.title3)
+                        .font(.system(size: 28))
+                        .padding(8)
+                        .background(Color.butter.opacity(0.55))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.ink.opacity(0.6), lineWidth: 1.5))
+                        .rotationEffect(.degrees(-4))
                     Spacer()
                     if let badge {
                         Text(badge)
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .padding(.horizontal, 8)
+                            .font(.gaegu(size: 14))
+                            .padding(.horizontal, 10)
                             .padding(.vertical, 4)
-                            .background(Color.blue.opacity(0.15))
+                            .background(Color.mint)
                             .clipShape(Capsule())
+                            .overlay(Capsule().stroke(Color.ink.opacity(0.6), lineWidth: 1.5))
+                            .foregroundStyle(Color.ink)
                     }
                 }
                 Text(title)
-                    .font(.gaegu(size: 21))
-                    .foregroundStyle(.primary)
+                    .font(.gaegu(size: 24))
+                    .foregroundStyle(Color.ink)
                 Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.gaegu(size: 17))
+                    .foregroundStyle(Color.pencil)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(Color(.secondarySystemGroupedBackground))
+            .padding(16)
+            .background(Color.paperSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isSelected ? Color.blue : Color(.separator).opacity(0.35), lineWidth: isSelected ? 2 : 1)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(isSelected ? Color.imessage : Color.ink.opacity(0.6), lineWidth: isSelected ? 3 : 1.5)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .shadow(color: Color.ink.opacity(isSelected ? 0.18 : 0.08), radius: isSelected ? 14 : 10, x: 0, y: isSelected ? 8 : 6)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SoftPressStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
@@ -692,44 +927,61 @@ private struct TemplateCard: View {
     let isSelected: Bool
     let onSelect: () -> Void
 
+    private var accent: Color {
+        switch template {
+        case .apartmentOS: .sky
+        case .choreReset: .mint
+        case .billsAndSupplies: .butter
+        }
+    }
+
     var body: some View {
         Button(action: onSelect) {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: "square.grid.2x2")
                     .font(.title2)
-                    .foregroundStyle(.blue)
-                    .frame(width: 34)
+                    .foregroundStyle(Color.ink)
+                    .frame(width: 42, height: 42)
+                    .background(accent.opacity(0.7))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.ink.opacity(0.6), lineWidth: 1.5))
+                    .rotationEffect(.degrees(-4))
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text(template.title)
-                        .font(.gaegu(size: 21))
-                        .foregroundStyle(.primary)
+                        .font(.gaegu(size: 24))
+                        .foregroundStyle(Color.ink)
                     Text(template.subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.gaegu(size: 17))
+                        .foregroundStyle(Color.pencil)
+                        .fixedSize(horizontal: false, vertical: true)
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(template.previewRows, id: \.self) { row in
                             Label(row, systemImage: "checkmark")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.gaegu(size: 15))
+                                .foregroundStyle(Color.pencil)
                         }
                     }
+                    .padding(.top, 4)
                 }
 
                 Spacer()
 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? .blue : .secondary)
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? Color.imessage : Color.pencil.opacity(0.5))
             }
-            .padding()
-            .background(Color(.secondarySystemGroupedBackground))
+            .padding(16)
+            .background(Color.paperSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isSelected ? Color.blue : Color(.separator).opacity(0.35), lineWidth: isSelected ? 2 : 1)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(isSelected ? Color.imessage : Color.ink.opacity(0.6), lineWidth: isSelected ? 3 : 1.5)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .shadow(color: Color.ink.opacity(isSelected ? 0.18 : 0.08), radius: isSelected ? 14 : 10, x: 0, y: isSelected ? 8 : 6)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SoftPressStyle())
     }
 }
 
@@ -741,14 +993,20 @@ private struct PreviewPill: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(icon)
-                .font(.title3)
-                .frame(width: 24)
+                .font(.system(size: 24))
+                .frame(width: 36, height: 36)
+                .background(Color.mint.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.ink.opacity(0.5), lineWidth: 1.5))
+                .rotationEffect(.degrees(-3))
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.gaegu(size: 19))
+                    .font(.gaegu(size: 22))
+                    .foregroundStyle(Color.ink)
                 Text(detail)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.gaegu(size: 17))
+                    .foregroundStyle(Color.pencil)
             }
             Spacer()
         }
@@ -868,6 +1126,7 @@ private struct HybridWorkspaceShell: View {
                 }
                 .tag(HybridTab.expenses)
             }
+            .tint(Color.imessage)
             .ignoresSafeArea(.keyboard, edges: .bottom)
 
             VStack(spacing: 10) {
@@ -878,6 +1137,7 @@ private struct HybridWorkspaceShell: View {
             }
             .padding(.bottom, 82)
         }
+        .foregroundStyle(Color.ink)
     }
 
     @ViewBuilder
@@ -925,50 +1185,64 @@ private struct HybridInboxView: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(householdName)
-                        .font(.gaegu(size: 27))
-                    HStack(spacing: 8) {
-                        ThreadChip(title: "\(openChoreCount) open chores", systemImage: "checklist")
-                        ThreadChip(title: "\(unpaidCount) unpaid", systemImage: "dollarsign.circle")
+        ZStack {
+            PaperWashBackground()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    inboxHeader
+                    Text("Threads")
+                        .font(.gaegu(size: 22))
+                        .foregroundStyle(Color.pencil)
+                        .padding(.horizontal, 2)
+
+                    VStack(spacing: 12) {
+                        ForEach(orderedPages) { page in
+                            NavigationLink(value: page.id) {
+                                ThreadRow(
+                                    title: page.title,
+                                    preview: preview(for: page),
+                                    icon: page.icon,
+                                    badges: badges(for: page)
+                                )
+                            }
+                            .buttonStyle(SoftPressStyle())
+                        }
                     }
                 }
-                .padding(.vertical, 8)
+                .padding(.horizontal, 18)
+                .padding(.top, 18)
+                .padding(.bottom, 100)
             }
-
-            Section("Threads") {
-                ForEach(orderedPages) { page in
-                    NavigationLink(value: page.id) {
-                        ThreadRow(
-                            title: page.title,
-                            preview: preview(for: page),
-                            icon: page.icon,
-                            badges: badges(for: page)
-                        )
-                    }
-                    .swipeActions(edge: .leading) {
-                        Button("Pin") { }
-                            .tint(.blue)
-                    }
-                    .swipeActions(edge: .trailing) {
-                        Button("Archive") { }
-                            .tint(.gray)
-                    }
-                }
-            }
-
         }
-        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: onCreatePage) {
                     Image(systemName: "plus.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.imessage)
                 }
                 .accessibilityLabel("Add thread")
             }
         }
+        .navigationTitle("Inbox")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var inboxHeader: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(householdName)
+                .font(.gaegu(size: 34))
+                .foregroundStyle(Color.ink)
+            HStack(spacing: 10) {
+                ThreadChip(title: "\(openChoreCount) open chores", systemImage: "checklist", tint: .mint)
+                ThreadChip(title: "\(unpaidCount) unpaid", systemImage: "dollarsign.circle", tint: .butter)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .paperCard()
     }
 
     private func preview(for page: WorkspacePage) -> String {
@@ -1058,55 +1332,66 @@ private struct ExpenseAnalyticsView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                header
-                graphCard
-                memberBreakdown
-                recentExpenses
+        ZStack {
+            PaperWashBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    header
+                    graphCard
+                    memberBreakdown
+                    recentExpenses
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 18)
+                .padding(.bottom, 100)
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 16)
         }
-        .background(Color(.systemGroupedBackground))
+        .scrollContentBackground(.hidden)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: onAddExpense) {
                     Image(systemName: "plus.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.imessage)
                 }
                 .accessibilityLabel("Add expense")
             }
         }
+        .navigationTitle("Expenses")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(displayedValue.formatted(.currency(code: "USD")))
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                        .font(.gaegu(size: 46))
+                        .foregroundStyle(Color.ink)
                         .minimumScaleFactor(0.75)
-                    Text("This \(selectedRange.rawValue.lowercased())")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Text("this \(selectedRange.rawValue.lowercased())")
+                        .font(.gaegu(size: 18))
+                        .foregroundStyle(Color.pencil)
                 }
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 4) {
+                VStack(alignment: .trailing, spacing: 6) {
                     Label(paidTotal.formatted(.currency(code: "USD")), systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.imessage)
                     Label(unpaidTotal.formatted(.currency(code: "USD")), systemImage: "clock")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.pencil)
                 }
-                .font(.caption)
-                .fontWeight(.semibold)
+                .font(.gaegu(size: 15))
             }
 
-            Text("Household spending updates as you scrub the graph. The cards below keep shared costs visible without turning the workspace into a dashboard.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            Text("a crayon line of where the money went. scrub the graph to peek at any week.")
+                .font(.gaegu(size: 17))
+                .foregroundStyle(Color.pencil)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .paperCard()
     }
 
     private var graphCard: some View {
@@ -1124,16 +1409,15 @@ private struct ExpenseAnalyticsView: View {
             ExpenseLineGraph(points: points, selectedIndex: $selectedPointIndex)
                 .frame(height: 230)
 
-            HStack {
-                Label("Drag to scrub", systemImage: "hand.draw")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
+            HStack(spacing: 6) {
+                Image(systemName: "hand.draw")
+                Text("drag to scrub")
             }
+            .font(.gaegu(size: 15))
+            .foregroundStyle(Color.pencil)
         }
         .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .paperCard()
     }
 
     private var memberBreakdown: some View {
@@ -1141,54 +1425,64 @@ private struct ExpenseAnalyticsView: View {
             expenses.filter { $0.paidBy == roommate.name }.map(\.amount).reduce(0, +)
         }.max() ?? 1, 1)
 
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("By roommate")
-                .font(.headline)
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("by roommate")
+                .font(.gaegu(size: 22))
+                .foregroundStyle(Color.ink)
 
             VStack(spacing: 10) {
-                ForEach(roommates) { roommate in
+                ForEach(Array(roommates.enumerated()), id: \.element.id) { index, roommate in
                     let amount = expenses.filter { $0.paidBy == roommate.name }.map(\.amount).reduce(0, +)
-                    MemberSpendRow(name: roommate.name, amount: amount, maxAmount: maxAmount)
+                    MemberSpendRow(
+                        name: roommate.name,
+                        amount: amount,
+                        maxAmount: maxAmount,
+                        tint: Self.memberTints[index % Self.memberTints.count]
+                    )
                 }
             }
         }
         .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .paperCard()
     }
 
-    private var recentExpenses: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Recent")
-                .font(.headline)
+    private static let memberTints: [Color] = [.mint, .peach, .lavender, .sky]
 
-            VStack(spacing: 8) {
+    private var recentExpenses: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("recent")
+                .font(.gaegu(size: 22))
+                .foregroundStyle(Color.ink)
+
+            VStack(spacing: 10) {
                 ForEach(expenses.prefix(4)) { expense in
                     HStack(spacing: 12) {
                         Image(systemName: "creditcard.fill")
-                            .foregroundStyle(.blue)
-                            .frame(width: 30, height: 30)
-                            .background(Color.blue.opacity(0.10))
-                            .clipShape(Circle())
+                            .foregroundStyle(Color.ink)
+                            .frame(width: 36, height: 36)
+                            .background(Color.butter.opacity(0.7))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.ink.opacity(0.5), lineWidth: 1.5))
+                            .rotationEffect(.degrees(-4))
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(expense.title)
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                            Text("\(expense.paidBy) - \(expense.status)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.gaegu(size: 19))
+                                .foregroundStyle(Color.ink)
+                            Text("\(expense.paidBy) · \(expense.status)")
+                                .font(.gaegu(size: 14))
+                                .foregroundStyle(Color.pencil)
                         }
 
                         Spacer()
 
                         Text(expense.amount.formatted(.currency(code: "USD")))
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
+                            .font(.gaegu(size: 19))
+                            .foregroundStyle(Color.ink)
                     }
-                    .padding(12)
-                    .background(Color(.secondarySystemGroupedBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .padding(14)
+                    .paperCard()
                 }
             }
         }
@@ -1221,33 +1515,33 @@ private struct ExpenseLineGraph: View {
                         path.move(to: CGPoint(x: 0, y: y))
                         path.addLine(to: CGPoint(x: proxy.size.width, y: y))
                     }
-                    .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
+                    .stroke(Color.ink.opacity(0.12), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
                 }
 
                 areaPath(points: chartPoints, height: proxy.size.height)
                     .fill(
                         LinearGradient(
-                            colors: [Color.blue.opacity(0.18), Color.blue.opacity(0.01)],
+                            colors: [Color.imessage.opacity(0.28), Color.imessage.opacity(0.02)],
                             startPoint: .top,
                             endPoint: .bottom
                         )
                     )
 
                 linePath(points: chartPoints)
-                    .stroke(Color.blue, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                    .stroke(Color.imessage, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
 
                 if let selectedIndex, chartPoints.indices.contains(selectedIndex) {
                     let point = chartPoints[selectedIndex]
 
                     Rectangle()
-                        .fill(Color.secondary.opacity(0.24))
+                        .fill(Color.ink.opacity(0.35))
                         .frame(width: 1, height: proxy.size.height)
                         .position(x: point.x, y: proxy.size.height / 2)
 
                     Circle()
-                        .fill(Color(.systemBackground))
+                        .fill(Color.paperSurface)
                         .frame(width: 18, height: 18)
-                        .overlay(Circle().stroke(Color.blue, lineWidth: 4))
+                        .overlay(Circle().stroke(Color.ink, lineWidth: 2))
                         .position(point)
                 }
 
@@ -1260,8 +1554,8 @@ private struct ExpenseLineGraph: View {
                         Spacer()
                         Text(points.last?.label ?? "")
                     }
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.gaegu(size: 13))
+                    .foregroundStyle(Color.pencil)
                     .padding(.top, 8)
                 }
             }
@@ -1329,29 +1623,32 @@ private struct MemberSpendRow: View {
     let name: String
     let amount: Double
     let maxAmount: Double
+    var tint: Color = .mint
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(name)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .font(.gaegu(size: 18))
+                    .foregroundStyle(Color.ink)
                 Spacer()
                 Text(amount.formatted(.currency(code: "USD")))
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                    .font(.gaegu(size: 18))
+                    .foregroundStyle(Color.ink)
             }
 
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(Color(.tertiarySystemGroupedBackground))
+                        .fill(Color.paperSurface)
+                        .overlay(Capsule().stroke(Color.ink.opacity(0.5), lineWidth: 1.5))
                     Capsule()
-                        .fill(Color.blue)
-                        .frame(width: proxy.size.width * CGFloat(amount / maxAmount))
+                        .fill(tint)
+                        .overlay(Capsule().stroke(Color.ink.opacity(0.5), lineWidth: 1.5))
+                        .frame(width: max(proxy.size.width * CGFloat(amount / maxAmount), 14))
                 }
             }
-            .frame(height: 7)
+            .frame(height: 12)
         }
     }
 }
@@ -1392,54 +1689,55 @@ private struct HybridThreadView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 10) {
-                    ThreadPageHeader(householdName: householdName, page: page)
-                    SystemTimelineNote(text: "\(saveState.title) - \(roommates.count) roommates")
+        ZStack {
+            PaperWashBackground()
 
-                    ForEach(timelineBlocks) { block in
-                        BlockBubble(block: block, isReadOnly: page.isReadOnly)
-                    }
+            VStack(spacing: 0) {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        ThreadPageHeader(householdName: householdName, page: page)
+                        SystemTimelineNote(text: "\(saveState.title) - \(roommates.count) roommates")
 
-                    if page.kind == .chores {
-                        ForEach($chores) { $chore in
-                            InlineChoreBubble(chore: $chore, isReadOnly: page.isReadOnly)
+                        ForEach(timelineBlocks) { block in
+                            BlockBubble(block: block, isReadOnly: page.isReadOnly)
+                        }
+
+                        if page.kind == .chores {
+                            ForEach($chores) { $chore in
+                                InlineChoreBubble(chore: $chore, isReadOnly: page.isReadOnly)
+                            }
+                        }
+
+                        if page.kind == .expenses {
+                            ForEach($expenses) { $expense in
+                                InlineExpenseBubble(expense: $expense, isReadOnly: page.isReadOnly)
+                            }
+                        }
+
+                        if page.kind == .roommates {
+                            ForEach(roommates) { roommate in
+                                MessageBubble(
+                                    text: "\(roommate.email)\n\(roommate.role)",
+                                    author: roommate.name,
+                                    alignment: .incoming,
+                                    systemImage: "person.crop.circle"
+                                )
+                            }
                         }
                     }
-
-                    if page.kind == .expenses {
-                        ForEach($expenses) { $expense in
-                            InlineExpenseBubble(expense: $expense, isReadOnly: page.isReadOnly)
-                        }
-                    }
-
-                    if page.kind == .roommates {
-                        ForEach(roommates) { roommate in
-                            MessageBubble(
-                                text: "\(roommate.email)\n\(roommate.role)",
-                                author: roommate.name,
-                                alignment: .incoming,
-                                systemImage: "person.crop.circle"
-                            )
-                        }
-                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 16)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 14)
+
+                ComposerBar(
+                    text: $composerText,
+                    mode: composerModeBinding,
+                    allowedModes: allowedComposerModes,
+                    isReadOnly: page.isReadOnly,
+                    onInsert: { isInsertMenuPresented = true },
+                    onSend: sendComposer
+                )
             }
-            .background(Color(.systemGroupedBackground))
-
-            Divider()
-
-            ComposerBar(
-                text: $composerText,
-                mode: composerModeBinding,
-                allowedModes: allowedComposerModes,
-                isReadOnly: page.isReadOnly,
-                onInsert: { isInsertMenuPresented = true },
-                onSend: sendComposer
-            )
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
@@ -1562,32 +1860,33 @@ private struct ThreadPageHeader: View {
     let page: WorkspacePage
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            EmojiBadge(icon: page.icon, size: 25, frame: 40)
+        HStack(alignment: .top, spacing: 14) {
+            EmojiBadge(icon: page.icon, size: 28, frame: 48)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(page.title)
-                    .font(.gaegu(size: 32))
+                    .font(.gaegu(size: 34))
+                    .foregroundStyle(Color.ink)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
 
                 HStack(spacing: 6) {
                     Text(householdName)
-                    Text("/")
+                    Text("·")
                     Text(page.kind.rawValue.capitalized)
                     if page.isReadOnly {
-                        Label("Read-only", systemImage: "lock")
+                        Label("read-only", systemImage: "lock")
                     }
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.gaegu(size: 15))
+                .foregroundStyle(Color.pencil)
             }
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 2)
-        .padding(.top, 4)
-        .padding(.bottom, 10)
+        .padding(14)
+        .paperCard()
+        .padding(.bottom, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -1605,8 +1904,12 @@ private struct EmojiBadge: View {
         Text(displayedIcon)
             .font(.system(size: size))
             .frame(width: frame, height: frame)
-            .background(Color.blue.opacity(0.10))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(Color.butter.opacity(0.7))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.ink.opacity(0.6), lineWidth: 1.5))
+            .rotationEffect(.degrees(-4))
+            .shadow(color: Color.ink.opacity(0.18), radius: 6, x: 0, y: 4)
     }
 }
 
@@ -1625,24 +1928,31 @@ private struct MessageBubble: View {
         HStack(alignment: .bottom) {
             if alignment == .outgoing { Spacer(minLength: 42) }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: alignment == .outgoing ? .trailing : .leading, spacing: 4) {
                 if let author {
                     Text(author)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.gaegu(size: 14))
+                        .foregroundStyle(Color.pencil)
                 }
                 HStack(alignment: .top, spacing: 8) {
                     if let systemImage {
                         Image(systemName: systemImage)
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(alignment == .outgoing ? Color.white : Color.imessage)
                     }
                     Text(text)
-                        .font(.body)
+                        .font(.gaegu(size: 20))
+                        .foregroundStyle(alignment == .outgoing ? Color.white : Color.ink)
+                        .multilineTextAlignment(alignment == .outgoing ? .trailing : .leading)
                 }
-                .padding(.horizontal, 13)
+                .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(alignment == .outgoing ? Color.blue.opacity(0.20) : Color(.secondarySystemGroupedBackground))
+                .background(alignment == .outgoing ? Color.imessage : Color.paperSurface)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.ink.opacity(0.85), lineWidth: 1.5)
+                )
+                .shadow(color: Color.ink.opacity(0.08), radius: 6, x: 0, y: 3)
             }
             .frame(maxWidth: 560, alignment: alignment == .outgoing ? .trailing : .leading)
 
@@ -1667,23 +1977,44 @@ private struct BlockBubble: View {
             HStack {
                 HStack(spacing: 10) {
                     Image(systemName: block.checked ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(block.checked ? .blue : .secondary)
+                        .foregroundStyle(block.checked ? Color.imessage : Color.pencil)
                     Text(block.text)
+                        .font(.gaegu(size: 20))
+                        .foregroundStyle(Color.ink)
                         .strikethrough(block.checked)
                 }
-                .padding(.horizontal, 13)
+                .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Color(.secondarySystemGroupedBackground))
+                .background(Color.mint.opacity(0.55))
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.ink.opacity(0.85), lineWidth: 1.5))
+                .shadow(color: Color.ink.opacity(0.08), radius: 6, x: 0, y: 3)
                 Spacer(minLength: 42)
             }
         case .callout:
-            MessageBubble(text: block.text, author: "Tip", alignment: .incoming, systemImage: "lightbulb.fill")
-        case .divider:
             HStack {
+                HStack(alignment: .top, spacing: 10) {
+                    Text("💡").font(.system(size: 22))
+                    Text(block.text)
+                        .font(.gaegu(size: 20))
+                        .foregroundStyle(Color.ink)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color.butter.opacity(0.65))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.ink.opacity(0.85), lineWidth: 1.5))
+                .shadow(color: Color.ink.opacity(0.08), radius: 6, x: 0, y: 3)
+                Spacer(minLength: 42)
+            }
+        case .divider:
+            HStack(spacing: 8) {
                 Spacer()
-                Divider()
-                    .frame(width: 180)
+                ForEach(0..<5, id: \.self) { _ in
+                    Circle().fill(Color.pencil.opacity(0.4)).frame(width: 5, height: 5)
+                }
                 Spacer()
             }
             .padding(.vertical, 8)
@@ -1746,42 +2077,62 @@ private struct InlineRecordBubble: View {
     let isReadOnly: Bool
     let onPrimaryAction: () -> Void
 
+    private var accent: Color {
+        // chore/expense get different sticker colors
+        icon.contains("dollar") ? Color.butter.opacity(0.55) : Color.mint.opacity(0.55)
+    }
+
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) {
                     Image(systemName: icon)
-                        .foregroundStyle(isComplete ? .blue : .secondary)
+                        .font(.title3)
+                        .foregroundStyle(Color.ink)
+                        .frame(width: 36, height: 36)
+                        .background(Color.paperSurface)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.ink.opacity(0.6), lineWidth: 1.5))
                     VStack(alignment: .leading, spacing: 3) {
                         Text(title)
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
+                            .font(.gaegu(size: 21))
+                            .foregroundStyle(Color.ink)
                         Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.gaegu(size: 15))
+                            .foregroundStyle(Color.pencil)
                     }
                     Spacer()
                     if let trailing {
                         Text(trailing)
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
+                            .font(.gaegu(size: 20))
+                            .foregroundStyle(Color.ink)
                     }
                 }
 
                 HStack(spacing: 8) {
                     Label(status, systemImage: isComplete ? "checkmark.circle.fill" : "circle")
-                        .font(.caption)
-                        .foregroundStyle(isComplete ? .blue : .secondary)
+                        .font(.gaegu(size: 14))
+                        .foregroundStyle(isComplete ? Color.imessage : Color.pencil)
                     Spacer()
                     Button(primaryActionTitle, action: onPrimaryAction)
-                        .font(.caption)
-                        .buttonStyle(.bordered)
+                        .font(.gaegu(size: 15))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(Color.paperSurface)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(Color.ink.opacity(0.6), lineWidth: 1.5))
+                        .foregroundStyle(Color.ink)
                         .disabled(isReadOnly)
+                        .opacity(isReadOnly ? 0.5 : 1)
                 }
             }
-            .padding(12)
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(14)
+            .background(accent)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.ink.opacity(0.85), lineWidth: 1.5))
+            .shadow(color: Color.ink.opacity(0.08), radius: 6, x: 0, y: 3)
             Spacer(minLength: 28)
         }
     }
@@ -1796,37 +2147,57 @@ private struct ComposerBar: View {
     let onSend: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             if text.hasPrefix("/") {
                 SlashSuggestionStrip(mode: $mode, modes: allowedModes)
             }
 
-            HStack(alignment: .bottom, spacing: 8) {
+            HStack(alignment: .bottom, spacing: 10) {
                 Button(action: onInsert) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
+                    Image(systemName: "plus")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(Color.ink)
+                        .frame(width: 36, height: 36)
+                        .background(Color.paperSurface)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.ink.opacity(0.85), lineWidth: 1.5))
                 }
+                .buttonStyle(SoftPressStyle())
                 .disabled(isReadOnly)
 
                 TextField(mode.placeholder, text: $text, axis: .vertical)
+                    .font(.gaegu(size: 20))
+                    .foregroundStyle(Color.ink)
                     .lineLimit(1...4)
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 14)
                     .padding(.vertical, 9)
-                    .background(Color(.secondarySystemGroupedBackground))
+                    .background(Color.paperSurface)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.ink.opacity(0.85), lineWidth: 1.5))
                     .disabled(isReadOnly)
 
+                let canSend = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 Button(action: onSend) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : Color.blue)
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(canSend ? Color.white : Color.pencil)
+                        .frame(width: 36, height: 36)
+                        .background(canSend ? Color.imessage : Color.paperSurface)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.ink.opacity(0.85), lineWidth: 1.5))
                 }
-                .disabled(isReadOnly || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .buttonStyle(SoftPressStyle())
+                .disabled(isReadOnly || !canSend)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.bar)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color.paperBg.opacity(0.85))
+        .overlay(
+            Rectangle().fill(Color.ink.opacity(0.12)).frame(height: 1),
+            alignment: .top
+        )
     }
 }
 
@@ -1838,18 +2209,20 @@ private struct SlashSuggestionStrip: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(modes) { candidate in
+                    let selected = mode == candidate
                     Button {
                         mode = candidate
                     } label: {
                         Label(candidate.rawValue, systemImage: candidate.icon)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .padding(.horizontal, 10)
+                            .font(.gaegu(size: 16))
+                            .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(mode == candidate ? Color.blue.opacity(0.16) : Color(.secondarySystemGroupedBackground))
+                            .background(selected ? Color.imessage : Color.paperSurface)
+                            .foregroundStyle(selected ? Color.white : Color.ink)
                             .clipShape(Capsule())
+                            .overlay(Capsule().stroke(Color.ink.opacity(0.6), lineWidth: 1.5))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoftPressStyle())
                 }
             }
         }
@@ -1863,16 +2236,24 @@ private struct InsertMenuSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(modes) { candidate in
-                    Button {
-                        mode = candidate
-                        dismiss()
-                    } label: {
-                        CommandRow(icon: candidate.icon, title: candidate.rawValue, subtitle: candidate.placeholder)
+            ZStack {
+                PaperWashBackground()
+                ScrollView {
+                    VStack(spacing: 12) {
+                        ForEach(modes) { candidate in
+                            Button {
+                                mode = candidate
+                                dismiss()
+                            } label: {
+                                CommandRow(icon: candidate.icon, title: candidate.rawValue, subtitle: candidate.placeholder)
+                            }
+                            .buttonStyle(SoftPressStyle())
+                        }
                     }
+                    .padding(18)
                 }
             }
+            .scrollContentBackground(.hidden)
             .navigationTitle("Insert")
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -1884,10 +2265,14 @@ private struct SystemTimelineNote: View {
 
     var body: some View {
         Text(text)
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .font(.gaegu(size: 14))
+            .foregroundStyle(Color.pencil)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.paperSurface.opacity(0.5))
+            .clipShape(Capsule())
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
     }
 }
 
@@ -1898,38 +2283,41 @@ private struct ThreadRow: View {
     let badges: [String]
 
     var body: some View {
-        HStack(spacing: 12) {
-            EmojiBadge(icon: icon, size: 19, frame: 30)
+        HStack(spacing: 14) {
+            EmojiBadge(icon: icon, size: 22, frame: 44)
 
             VStack(alignment: .leading, spacing: 5) {
-                HStack {
+                HStack(alignment: .firstTextBaseline) {
                     Text(title)
-                        .font(.gaegu(size: 19))
+                        .font(.gaegu(size: 22))
+                        .foregroundStyle(Color.ink)
                     Spacer()
                     Text("Now")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(.gaegu(size: 13))
+                        .foregroundStyle(Color.pencil)
                 }
                 Text(preview)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.gaegu(size: 17))
+                    .foregroundStyle(Color.pencil)
                     .lineLimit(2)
                 if !badges.isEmpty {
-                    HStack {
+                    HStack(spacing: 6) {
                         ForEach(badges, id: \.self) { badge in
                             Text(badge)
-                                .font(.caption2)
-                                .fontWeight(.semibold)
-                                .padding(.horizontal, 7)
+                                .font(.gaegu(size: 13))
+                                .padding(.horizontal, 9)
                                 .padding(.vertical, 3)
-                                .background(Color(.tertiarySystemGroupedBackground))
+                                .background(Color.lavender.opacity(0.7))
                                 .clipShape(Capsule())
+                                .overlay(Capsule().stroke(Color.ink.opacity(0.5), lineWidth: 1))
+                                .foregroundStyle(Color.ink)
                         }
                     }
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(14)
+        .paperCard()
         .contentShape(Rectangle())
     }
 }
@@ -1937,15 +2325,17 @@ private struct ThreadRow: View {
 private struct ThreadChip: View {
     let title: String
     let systemImage: String
+    var tint: Color = .butter
 
     var body: some View {
         Label(title, systemImage: systemImage)
-            .font(.caption)
-            .fontWeight(.semibold)
-            .padding(.horizontal, 10)
+            .font(.gaegu(size: 15))
+            .foregroundStyle(Color.ink)
+            .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(Color(.tertiarySystemGroupedBackground))
+            .background(tint.opacity(0.8))
             .clipShape(Capsule())
+            .overlay(Capsule().stroke(Color.ink.opacity(0.6), lineWidth: 1.5))
     }
 }
 
@@ -1955,19 +2345,28 @@ private struct CommandRow: View {
     let subtitle: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             Image(systemName: icon)
-                .frame(width: 24)
-                .foregroundStyle(.blue)
+                .font(.title3)
+                .frame(width: 40, height: 40)
+                .background(Color.mint.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.ink.opacity(0.5), lineWidth: 1.5))
+                .rotationEffect(.degrees(-3))
+                .foregroundStyle(Color.ink)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.headline)
+                    .font(.gaegu(size: 22))
+                    .foregroundStyle(Color.ink)
                 Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.gaegu(size: 16))
+                    .foregroundStyle(Color.pencil)
             }
+            Spacer()
         }
-        .padding(.vertical, 4)
+        .padding(14)
+        .paperCard()
     }
 }
 
@@ -2022,38 +2421,60 @@ private struct ThingEditorSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    TextField("Name", text: $draftTitle)
-                    HStack {
-                        Text("Emoji")
-                        Spacer()
-                        TextField("🏠", text: $draftIcon)
-                            .multilineTextAlignment(.trailing)
-                    }
-                }
+            ZStack {
+                PaperWashBackground()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("name")
+                                .font(.gaegu(size: 16))
+                                .foregroundStyle(Color.pencil)
+                            TextField("Untitled thread", text: $draftTitle)
+                                .font(.gaegu(size: 22))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 12)
+                                .paperCard(radius: 16)
 
-                if mode == .create {
-                    Section {
-                        Picker("Type", selection: $draftKind) {
-                            ForEach(PageKind.allCases, id: \.self) { kind in
-                                Text(kind.displayTitle).tag(kind)
-                            }
+                            Text("emoji")
+                                .font(.gaegu(size: 16))
+                                .foregroundStyle(Color.pencil)
+                            TextField("🏠", text: $draftIcon)
+                                .font(.system(size: 26))
+                                .multilineTextAlignment(.leading)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 12)
+                                .paperCard(radius: 16)
                         }
-                        .onChange(of: draftKind) {
-                            if draftIcon.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                draftIcon = draftKind.defaultEmoji
+
+                        if mode == .create {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("kind")
+                                    .font(.gaegu(size: 16))
+                                    .foregroundStyle(Color.pencil)
+                                Picker("Type", selection: $draftKind) {
+                                    ForEach(PageKind.allCases, id: \.self) { kind in
+                                        Text(kind.displayTitle).tag(kind)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                                .onChange(of: draftKind) {
+                                    if draftIcon.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        draftIcon = draftKind.defaultEmoji
+                                    }
+                                }
                             }
                         }
                     }
+                    .padding(18)
                 }
             }
-            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
             .navigationTitle(mode.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
+                        .foregroundStyle(Color.ink)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
@@ -2063,6 +2484,7 @@ private struct ThingEditorSheet: View {
                         onSave(title, icon, draftKind)
                     }
                     .fontWeight(.semibold)
+                    .foregroundStyle(Color.imessage)
                     .disabled(isSaveDisabled)
                 }
             }
@@ -2074,14 +2496,20 @@ private struct ToastView: View {
     let message: String
 
     var body: some View {
-        Text(message)
-            .font(.subheadline)
-            .fontWeight(.semibold)
-            .foregroundStyle(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(.black.opacity(0.78))
-            .clipShape(Capsule())
+        HStack(spacing: 8) {
+            Text("✨").font(.system(size: 16))
+            Text(message)
+                .font(.gaegu(size: 18))
+                .foregroundStyle(Color.ink)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color.butter)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color.ink.opacity(0.85), lineWidth: 1.5))
+        .shadow(color: Color.ink.opacity(0.25), radius: 0, x: 0, y: 4)
+        .shadow(color: Color.ink.opacity(0.15), radius: 12, x: 0, y: 8)
+        .rotationEffect(.degrees(-2))
     }
 }
 
