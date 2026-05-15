@@ -163,6 +163,124 @@ private extension Font {
     }
 }
 
+// MARK: - Animation helpers
+
+// The house chip on the welcome screen — wiggles gently so the page feels alive.
+private struct WelcomeHouseIcon: View {
+    @State private var tilt: Double = -6
+
+    var body: some View {
+        Text("🏠")
+            .font(.system(size: 34))
+            .padding(10)
+            .background(Color.butter)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.ink.opacity(0.85), lineWidth: 2))
+            .rotationEffect(.degrees(tilt))
+            .shadow(color: Color.ink.opacity(0.18), radius: 6, x: 0, y: 4)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
+                    tilt = 6
+                }
+            }
+    }
+}
+
+// A bouncy green check used on the onboarding success screen.
+private struct SuccessCheckBadge: View {
+    @State private var scale: CGFloat = 0.6
+    @State private var rotation: Double = -18
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color.mint)
+                .frame(width: 80, height: 80)
+                .overlay(Circle().stroke(Color.ink.opacity(0.85), lineWidth: 2))
+                .shadow(color: Color.ink.opacity(0.18), radius: 8, x: 0, y: 5)
+            Image(systemName: "checkmark")
+                .font(.system(size: 38, weight: .bold))
+                .foregroundStyle(Color.ink)
+        }
+        .scaleEffect(scale)
+        .rotationEffect(.degrees(rotation))
+        .onAppear {
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.55)) {
+                scale = 1
+                rotation = -6
+            }
+        }
+    }
+}
+
+// Random colored sparkles fade up around the success badge.
+private struct SparkleConfetti: View {
+    @State private var appeared = false
+
+    private let pieces: [SparklePiece] = (0..<10).map { _ in
+        SparklePiece(
+            color: [Color.butter, .peach, .mint, .lavender, .coral, .sky].randomElement()!,
+            offset: CGSize(
+                width: CGFloat.random(in: -40...260),
+                height: CGFloat.random(in: -40...80)
+            ),
+            delay: Double.random(in: 0...0.4),
+            scale: CGFloat.random(in: 0.7...1.4),
+            rotation: Double.random(in: -30...30)
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            ForEach(pieces) { piece in
+                Text("✨")
+                    .font(.system(size: 18 * piece.scale))
+                    .foregroundStyle(piece.color)
+                    .offset(piece.offset)
+                    .scaleEffect(appeared ? 1 : 0)
+                    .rotationEffect(.degrees(appeared ? piece.rotation : 0))
+                    .opacity(appeared ? 1 : 0)
+                    .animation(.spring(response: 0.7, dampingFraction: 0.65).delay(piece.delay), value: appeared)
+            }
+        }
+        .frame(width: 0, height: 0)
+        .allowsHitTesting(false)
+        .onAppear { appeared = true }
+    }
+
+    private struct SparklePiece: Identifiable {
+        let id = UUID()
+        let color: Color
+        let offset: CGSize
+        let delay: Double
+        let scale: CGFloat
+        let rotation: Double
+    }
+}
+
+// A view modifier that gently nudges a view in from below with a spring,
+// staggered by its index. Used to make lists feel alive when they first
+// appear.
+private struct RevealOnAppearModifier: ViewModifier {
+    let delay: Double
+    @State private var visible = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(visible ? 1 : 0)
+            .offset(y: visible ? 0 : 14)
+            .animation(.spring(response: 0.55, dampingFraction: 0.78).delay(delay), value: visible)
+            .onAppear { visible = true }
+    }
+}
+
+private extension View {
+    func revealOnAppear(delay: Double = 0) -> some View {
+        modifier(RevealOnAppearModifier(delay: delay))
+    }
+}
+
 private enum AppAppearance {
     case light
     case dark
@@ -340,12 +458,12 @@ struct ContentView: View {
     }
 
     private func showToast(_ message: String) {
-        withAnimation {
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.6)) {
             toastMessage = message
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-            withAnimation {
+            withAnimation(.easeOut(duration: 0.25)) {
                 if toastMessage == message {
                     toastMessage = nil
                 }
@@ -407,15 +525,21 @@ private struct OnboardingFlowView: View {
                             }
                         }
                         .id(step)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal: .move(edge: .leading).combined(with: .opacity)
+                        ))
                     }
                     .frame(maxWidth: 720, alignment: .leading)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 28)
                     .frame(maxWidth: .infinity)
+                    .animation(.spring(response: 0.45, dampingFraction: 0.82), value: step)
                 }
             }
         }
         .foregroundStyle(Color.ink)
+        .animation(.easeInOut(duration: 0.4), value: appearance)
     }
 
     private var stepLabel: String {
@@ -432,15 +556,7 @@ private struct OnboardingFlowView: View {
         VStack(alignment: .leading, spacing: 26) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
-                    Text("🏠")
-                        .font(.system(size: 34))
-                        .padding(10)
-                        .background(Color.butter)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.ink.opacity(0.85), lineWidth: 2))
-                        .rotationEffect(.degrees(-6))
-                        .shadow(color: Color.ink.opacity(0.18), radius: 6, x: 0, y: 4)
+                    WelcomeHouseIcon()
                     Text("a second home from home")
                         .font(.gaegu(size: 18))
                         .italic()
@@ -479,7 +595,7 @@ private struct OnboardingFlowView: View {
             )
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 14)], spacing: 14) {
-                ForEach(OnboardingIntent.allCases) { intent in
+                ForEach(Array(OnboardingIntent.allCases.enumerated()), id: \.element.id) { index, intent in
                     SelectableCard(
                         title: intent.title,
                         subtitle: intent.subtitle,
@@ -487,9 +603,12 @@ private struct OnboardingFlowView: View {
                         badge: intent == .apartment ? "Recommended" : nil,
                         isSelected: selectedIntent == intent
                     ) {
-                        selectedIntent = intent
-                        selectedTemplate = intent.defaultTemplate
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            selectedIntent = intent
+                            selectedTemplate = intent.defaultTemplate
+                        }
                     }
+                    .revealOnAppear(delay: Double(index) * 0.06)
                 }
             }
 
@@ -568,12 +687,17 @@ private struct OnboardingFlowView: View {
             )
 
             VStack(spacing: 12) {
-                ForEach(StarterTemplate.allCases) { template in
+                ForEach(Array(StarterTemplate.allCases.enumerated()), id: \.element.id) { index, template in
                     TemplateCard(
                         template: template,
                         isSelected: selectedTemplate == template,
-                        onSelect: { selectedTemplate = template }
+                        onSelect: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                selectedTemplate = template
+                            }
+                        }
                     )
+                    .revealOnAppear(delay: Double(index) * 0.07)
                 }
             }
 
@@ -630,26 +754,18 @@ private struct OnboardingFlowView: View {
 
     private var successScreen: some View {
         VStack(alignment: .leading, spacing: 22) {
-            HStack(spacing: 14) {
-                ZStack {
-                    Circle()
-                        .fill(Color.mint)
-                        .frame(width: 80, height: 80)
-                        .overlay(Circle().stroke(Color.ink.opacity(0.85), lineWidth: 2))
-                        .shadow(color: Color.ink.opacity(0.18), radius: 8, x: 0, y: 5)
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 38, weight: .bold))
-                        .foregroundStyle(Color.ink)
+            ZStack(alignment: .topLeading) {
+                HStack(spacing: 14) {
+                    SuccessCheckBadge()
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("welcome home!")
+                            .font(.gaegu(size: 34))
+                        Text("your little place is ready 🏠")
+                            .font(.gaegu(size: 19))
+                            .foregroundStyle(Color.pencil)
+                    }
                 }
-                .rotationEffect(.degrees(-6))
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("welcome home!")
-                        .font(.gaegu(size: 34))
-                    Text("your little place is ready 🏠")
-                        .font(.gaegu(size: 19))
-                        .foregroundStyle(Color.pencil)
-                }
+                SparkleConfetti()
             }
 
             Text("pages for chores, expenses, house rules, and roommates are set up. you can decorate, rename, or rearrange any of it later.")
@@ -1132,10 +1248,14 @@ private struct HybridWorkspaceShell: View {
             VStack(spacing: 10) {
                 if let toastMessage {
                     ToastView(message: toastMessage)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.5).combined(with: .opacity).combined(with: .move(edge: .bottom)),
+                            removal: .opacity
+                        ))
                 }
             }
             .padding(.bottom, 82)
+            .animation(.spring(response: 0.45, dampingFraction: 0.6), value: toastMessage)
         }
         .foregroundStyle(Color.ink)
     }
@@ -1197,7 +1317,7 @@ private struct HybridInboxView: View {
                         .padding(.horizontal, 2)
 
                     VStack(spacing: 12) {
-                        ForEach(orderedPages) { page in
+                        ForEach(Array(orderedPages.enumerated()), id: \.element.id) { index, page in
                             NavigationLink(value: page.id) {
                                 ThreadRow(
                                     title: page.title,
@@ -1207,6 +1327,7 @@ private struct HybridInboxView: View {
                                 )
                             }
                             .buttonStyle(SoftPressStyle())
+                            .revealOnAppear(delay: Double(index) * 0.06)
                         }
                     }
                 }
@@ -2039,7 +2160,9 @@ private struct InlineChoreBubble: View {
             primaryActionTitle: chore.status == "Done" ? "Reopen" : "Done",
             isReadOnly: isReadOnly,
             onPrimaryAction: {
-                chore.status = chore.status == "Done" ? "Not started" : "Done"
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) {
+                    chore.status = chore.status == "Done" ? "Not started" : "Done"
+                }
             }
         )
     }
@@ -2060,7 +2183,9 @@ private struct InlineExpenseBubble: View {
             primaryActionTitle: expense.status == "Paid" ? "Unpaid" : "Paid",
             isReadOnly: isReadOnly,
             onPrimaryAction: {
-                expense.status = expense.status == "Paid" ? "Unpaid" : "Paid"
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) {
+                    expense.status = expense.status == "Paid" ? "Unpaid" : "Paid"
+                }
             }
         )
     }
@@ -2133,6 +2258,8 @@ private struct InlineRecordBubble: View {
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color.ink.opacity(0.85), lineWidth: 1.5))
             .shadow(color: Color.ink.opacity(0.08), radius: 6, x: 0, y: 3)
+            .scaleEffect(isComplete ? 0.97 : 1)
+            .animation(.spring(response: 0.35, dampingFraction: 0.55), value: isComplete)
             Spacer(minLength: 28)
         }
     }
@@ -2150,6 +2277,7 @@ private struct ComposerBar: View {
         VStack(alignment: .leading, spacing: 8) {
             if text.hasPrefix("/") {
                 SlashSuggestionStrip(mode: $mode, modes: allowedModes)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
             HStack(alignment: .bottom, spacing: 10) {
@@ -2198,6 +2326,8 @@ private struct ComposerBar: View {
             Rectangle().fill(Color.ink.opacity(0.12)).frame(height: 1),
             alignment: .top
         )
+        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: text.hasPrefix("/"))
+        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: mode)
     }
 }
 
