@@ -248,6 +248,13 @@ struct ChoreRecord: Identifiable, Equatable {
     var dueDate: String
 }
 
+struct ExpenseSplit: Identifiable, Equatable {
+    let id: UUID
+    var roommateName: String
+    var amount: Double
+    var isPaid: Bool
+}
+
 struct ExpenseRecord: Identifiable, Equatable {
     let id: UUID
     var title: String
@@ -255,6 +262,16 @@ struct ExpenseRecord: Identifiable, Equatable {
     var paidBy: String
     var status: String
     var splitWith: String
+    var splits: [ExpenseSplit]
+
+    // Derived helpers
+    var amountOutstanding: Double {
+        splits.filter { !$0.isPaid }.map(\.amount).reduce(0, +)
+    }
+
+    var isFullyPaid: Bool {
+        !splits.isEmpty && splits.allSatisfy { $0.isPaid }
+    }
 }
 
 struct Roommate: Identifiable, Equatable {
@@ -306,7 +323,7 @@ enum WorkspaceFactory {
                     chores.insert(ChoreRecord(id: UUID(), title: title, assignee: "Unassigned", status: "Not started", dueDate: "No due date"), at: 0)
                 case .expenses:
                     expenses.insert(
-                        ExpenseRecord(id: UUID(), title: title, amount: max(firstAction.amount, 0), paidBy: "Alex Kim", status: "Unpaid", splitWith: "Everyone"),
+                        ExpenseRecord(id: UUID(), title: title, amount: max(firstAction.amount, 0), paidBy: "Alex Kim", status: "Unpaid", splitWith: "Everyone", splits: []),
                         at: 0
                     )
                 case .rules:
@@ -391,7 +408,7 @@ enum WorkspaceFactory {
         return WorkspaceSeed(
             householdName: householdName,
             pageIDs: ids,
-            rootPageIDs: [ids.homeID, ids.choresID, ids.expensesID, ids.rulesID, ids.tripsID, ids.roommatesID],
+            rootPageIDs: [ids.homeID, ids.choresID, ids.rulesID, ids.tripsID, ids.roommatesID],
             pages: pages,
             chores: chores,
             expenses: expenses,
@@ -433,22 +450,47 @@ enum WorkspaceFactory {
     }
 
     private static func starterExpenses(for template: StarterTemplate) -> [ExpenseRecord] {
+        // Helper that builds an evenly-split expense among the given splitees.
+        func evenly(_ title: String, _ amount: Double, paidBy: String, splitees: [(String, Bool)]) -> ExpenseRecord {
+            let perPerson = (amount / Double(splitees.count + 1) * 100).rounded() / 100
+            let splits = splitees.map { (name, isPaid) in
+                ExpenseSplit(id: UUID(), roommateName: name, amount: perPerson, isPaid: isPaid)
+            }
+            let status: String
+            if splits.allSatisfy(\.isPaid) {
+                status = "Paid"
+            } else if splits.contains(where: \.isPaid) {
+                status = "Partially paid"
+            } else {
+                status = "Unpaid"
+            }
+            return ExpenseRecord(
+                id: UUID(),
+                title: title,
+                amount: amount,
+                paidBy: paidBy,
+                status: status,
+                splitWith: "Everyone",
+                splits: splits
+            )
+        }
+
         switch template {
         case .apartmentOS:
-            [
-                ExpenseRecord(id: UUID(), title: "Internet bill", amount: 60, paidBy: "Alex Kim", status: "Partially paid", splitWith: "Everyone"),
-                ExpenseRecord(id: UUID(), title: "Toilet paper", amount: 18, paidBy: "Maya Patel", status: "Unpaid", splitWith: "Everyone"),
-                ExpenseRecord(id: UUID(), title: "Cleaning supplies", amount: 25, paidBy: "Jordan Lee", status: "Paid", splitWith: "Everyone")
+            return [
+                evenly("Internet bill", 60, paidBy: "Alex Kim", splitees: [("Maya Patel", true), ("Jordan Lee", false), ("Priya Shah", false)]),
+                evenly("Toilet paper", 18, paidBy: "Maya Patel", splitees: [("Alex Kim", false), ("Jordan Lee", false), ("Priya Shah", false)]),
+                evenly("Cleaning supplies", 25, paidBy: "Jordan Lee", splitees: [("Alex Kim", true), ("Maya Patel", true), ("Priya Shah", true)])
             ]
         case .choreReset:
-            [
-                ExpenseRecord(id: UUID(), title: "Cleaning supplies", amount: 25, paidBy: "Jordan Lee", status: "Unpaid", splitWith: "Everyone")
+            return [
+                evenly("Cleaning supplies", 25, paidBy: "Jordan Lee", splitees: [("Alex Kim", false), ("Maya Patel", false), ("Priya Shah", false)])
             ]
         case .billsAndSupplies:
-            [
-                ExpenseRecord(id: UUID(), title: "Internet bill", amount: 60, paidBy: "Alex Kim", status: "Partially paid", splitWith: "Everyone"),
-                ExpenseRecord(id: UUID(), title: "Paper towels", amount: 16, paidBy: "Priya Shah", status: "Unpaid", splitWith: "Everyone"),
-                ExpenseRecord(id: UUID(), title: "Electricity bill", amount: 95, paidBy: "Maya Patel", status: "Unpaid", splitWith: "Everyone")
+            return [
+                evenly("Internet bill", 60, paidBy: "Alex Kim", splitees: [("Maya Patel", true), ("Jordan Lee", false), ("Priya Shah", false)]),
+                evenly("Paper towels", 16, paidBy: "Priya Shah", splitees: [("Alex Kim", false), ("Maya Patel", false), ("Jordan Lee", false)]),
+                evenly("Electricity bill", 95, paidBy: "Maya Patel", splitees: [("Alex Kim", false), ("Jordan Lee", false), ("Priya Shah", false)])
             ]
         }
     }

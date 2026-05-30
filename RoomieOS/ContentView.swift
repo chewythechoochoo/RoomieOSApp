@@ -562,7 +562,7 @@ struct ContentView: View {
         case .newExpense:
             selectedPageID = pageIDs.expensesID
             expenses.insert(
-                ExpenseRecord(id: UUID(), title: "New expense", amount: 0, paidBy: "Alex Kim", status: "Unpaid", splitWith: "Everyone"),
+                ExpenseRecord(id: UUID(), title: "New expense", amount: 0, paidBy: "Alex Kim", status: "Unpaid", splitWith: "Everyone", splits: []),
                 at: 0
             )
             showToast("Expense added")
@@ -1427,11 +1427,9 @@ private struct HybridWorkspaceShell: View {
 
                     NavigationStack {
                         ExpenseAnalyticsView(
-                            expenses: expenses,
+                            expenses: $expenses,
                             roommates: roommates,
-                            onAddExpense: {
-                                onRunCommand(.newExpense)
-                            }
+                            onToast: onToast
                         )
                     }
                     .tag(HybridTab.expenses)
@@ -1566,6 +1564,8 @@ private struct HybridInboxView: View {
         }
         .navigationTitle("Inbox")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color.paperBg, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
     }
 
     private var inboxHeader: some View {
@@ -1639,18 +1639,20 @@ private struct ExpenseTrendPoint: Identifiable {
 }
 
 private struct ExpenseAnalyticsView: View {
-    let expenses: [ExpenseRecord]
+    @Binding var expenses: [ExpenseRecord]
     let roommates: [Roommate]
-    let onAddExpense: () -> Void
+    let onToast: (String) -> Void
     @State private var selectedRange: ExpenseAnalyticsRange = .week
     @State private var selectedPointIndex: Int?
+    @State private var isAddExpensePresented = false
+    @State private var expandedRoommateID: UUID?
 
     private var paidTotal: Double {
-        expenses.filter { $0.status == "Paid" }.map(\.amount).reduce(0, +)
+        expenses.flatMap(\.splits).filter(\.isPaid).map(\.amount).reduce(0, +)
     }
 
     private var unpaidTotal: Double {
-        expenses.filter { $0.status != "Paid" }.map(\.amount).reduce(0, +)
+        expenses.flatMap(\.splits).filter { !$0.isPaid }.map(\.amount).reduce(0, +)
     }
 
     private var points: [ExpenseTrendPoint] {
@@ -1677,7 +1679,7 @@ private struct ExpenseAnalyticsView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     graphCard
-                    memberBreakdown
+                    whoOwesWhomSection
                     recentExpenses
                 }
                 .padding(.horizontal, 18)
@@ -1688,7 +1690,9 @@ private struct ExpenseAnalyticsView: View {
         .scrollContentBackground(.hidden)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(action: onAddExpense) {
+                Button {
+                    isAddExpensePresented = true
+                } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.title2)
                         .foregroundStyle(Color.imessage)
@@ -1698,6 +1702,19 @@ private struct ExpenseAnalyticsView: View {
         }
         .navigationTitle("Expenses")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color.paperBg, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .sheet(isPresented: $isAddExpensePresented) {
+            AddExpenseSheet(
+                roommates: roommates,
+                onCancel: { isAddExpensePresented = false },
+                onSave: { record in
+                    expenses.insert(record, at: 0)
+                    isAddExpensePresented = false
+                    onToast("\(record.title) added")
+                }
+            )
+        }
     }
 
     private var header: some View {
@@ -1723,10 +1740,6 @@ private struct ExpenseAnalyticsView: View {
                 }
                 .font(.gaegu(size: 15))
             }
-
-            Text("a crayon line of where the money went. scrub the graph to peek at any week.")
-                .font(.gaegu(size: 17))
-                .foregroundStyle(Color.pencil)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -1759,33 +1772,54 @@ private struct ExpenseAnalyticsView: View {
         .paperCard()
     }
 
-    private var memberBreakdown: some View {
-        let maxAmount = max(roommates.map { roommate in
-            expenses.filter { $0.paidBy == roommate.name }.map(\.amount).reduce(0, +)
-        }.max() ?? 1, 1)
-
-        return VStack(alignment: .leading, spacing: 12) {
-            Text("by roommate")
+    // The "Who owes whom" section. For each roommate, sums up unpaid splits
+    // across every expense they paid for. Tap a card to expand and see each
+    // individual split, with a Paid/Unpaid toggle so users can settle up.
+    private var whoOwesWhomSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("who owes whom")
                 .font(.gaegu(size: 22))
                 .foregroundStyle(Color.ink)
 
             VStack(spacing: 10) {
                 ForEach(Array(roommates.enumerated()), id: \.element.id) { index, roommate in
-                    let amount = expenses.filter { $0.paidBy == roommate.name }.map(\.amount).reduce(0, +)
-                    MemberSpendRow(
-                        name: roommate.name,
-                        amount: amount,
-                        maxAmount: maxAmount,
-                        tint: Self.memberTints[index % Self.memberTints.count]
+                    RoommateOwesCard(
+                        roommate: roommate,
+                        tint: Self.memberTints[index % Self.memberTints.count],
+                        expenses: $expenses,
+                        isExpanded: expandedRoommateID == roommate.id,
+                        onToggleExpanded: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.78)) {
+                                expandedRoommateID = (expandedRoommateID == roommate.id) ? nil : roommate.id
+                            }
+                        },
+                        onTogglePaid: { expenseID, splitID in
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                togglePaid(expenseID: expenseID, splitID: splitID)
+                            }
+                        }
                     )
                 }
             }
         }
-        .padding(16)
-        .paperCard()
     }
 
     private static let memberTints: [Color] = [.mint, .peach, .lavender, .sky]
+
+    private func togglePaid(expenseID: UUID, splitID: UUID) {
+        guard let expenseIndex = expenses.firstIndex(where: { $0.id == expenseID }) else { return }
+        guard let splitIndex = expenses[expenseIndex].splits.firstIndex(where: { $0.id == splitID }) else { return }
+        expenses[expenseIndex].splits[splitIndex].isPaid.toggle()
+        // Keep `status` synced for the legacy field.
+        if expenses[expenseIndex].splits.allSatisfy(\.isPaid) {
+            expenses[expenseIndex].status = "Paid"
+        } else if expenses[expenseIndex].splits.contains(where: \.isPaid) {
+            expenses[expenseIndex].status = "Partially paid"
+        } else {
+            expenses[expenseIndex].status = "Unpaid"
+        }
+        onToast(expenses[expenseIndex].splits[splitIndex].isPaid ? "Marked paid" : "Marked unpaid")
+    }
 
     private var recentExpenses: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1955,6 +1989,466 @@ private struct ExpenseLineGraph: View {
         let clampedX = min(max(x, 0), width)
         let progress = clampedX / max(width, 1)
         return min(max(Int(round(progress * CGFloat(points.count - 1))), 0), points.count - 1)
+    }
+}
+
+// MARK: - Who owes whom
+
+private struct RoommateOwesCard: View {
+    let roommate: Roommate
+    let tint: Color
+    @Binding var expenses: [ExpenseRecord]
+    let isExpanded: Bool
+    let onToggleExpanded: () -> Void
+    let onTogglePaid: (UUID, UUID) -> Void
+
+    // All (expense, split) pairs where someone else owes this roommate.
+    private var owedItems: [(expense: ExpenseRecord, split: ExpenseSplit)] {
+        expenses
+            .filter { $0.paidBy == roommate.name }
+            .flatMap { expense in
+                expense.splits.map { (expense: expense, split: $0) }
+            }
+    }
+
+    private var outstandingTotal: Double {
+        owedItems.filter { !$0.split.isPaid }.map(\.split.amount).reduce(0, +)
+    }
+
+    private var paidTotal: Double {
+        owedItems.filter { $0.split.isPaid }.map(\.split.amount).reduce(0, +)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(action: onToggleExpanded) {
+                HStack(spacing: 12) {
+                    Text(initials(for: roommate.name))
+                        .font(.gaegu(size: 17))
+                        .frame(width: 40, height: 40)
+                        .background(tint.opacity(0.85))
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.ink.opacity(0.55), lineWidth: 1.5))
+                        .foregroundStyle(Color.ink)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(roommate.name)
+                            .font(.gaegu(size: 20))
+                            .foregroundStyle(Color.ink)
+                        Text(subtitle)
+                            .font(.gaegu(size: 14))
+                            .foregroundStyle(Color.pencil)
+                    }
+
+                    Spacer()
+
+                    Text(outstandingTotal.formatted(.currency(code: "USD")))
+                        .font(.gaegu(size: 19))
+                        .foregroundStyle(outstandingTotal > 0 ? Color.ink : Color.pencil)
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.pencil)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .padding(14)
+            }
+            .buttonStyle(SoftPressStyle())
+
+            if isExpanded {
+                Divider()
+                    .overlay(Color.ink.opacity(0.18))
+                    .padding(.horizontal, 14)
+
+                VStack(spacing: 8) {
+                    if owedItems.isEmpty {
+                        Text("nobody owes \(firstName) anything yet.")
+                            .font(.gaegu(size: 16))
+                            .foregroundStyle(Color.pencil)
+                            .padding(.vertical, 8)
+                    } else {
+                        ForEach(owedItems.indices, id: \.self) { i in
+                            let pair = owedItems[i]
+                            OwedSplitRow(
+                                expenseTitle: pair.expense.title,
+                                debtor: pair.split.roommateName,
+                                amount: pair.split.amount,
+                                isPaid: pair.split.isPaid,
+                                onTogglePaid: {
+                                    onTogglePaid(pair.expense.id, pair.split.id)
+                                }
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .top)),
+                    removal: .opacity
+                ))
+            }
+        }
+        .paperCard()
+    }
+
+    private var subtitle: String {
+        if owedItems.isEmpty {
+            return "nothing fronted yet"
+        }
+        let unpaidCount = owedItems.filter { !$0.split.isPaid }.count
+        if unpaidCount == 0 {
+            return "all settled · paid \(paidTotal.formatted(.currency(code: "USD")))"
+        }
+        return "\(unpaidCount) unpaid · \(owedItems.count) total"
+    }
+
+    private var firstName: String {
+        roommate.name.split(separator: " ").first.map(String.init) ?? roommate.name
+    }
+
+    private func initials(for name: String) -> String {
+        let parts = name.split(separator: " ")
+        let first = parts.first.map { String($0.prefix(1)) } ?? ""
+        let second = parts.dropFirst().first.map { String($0.prefix(1)) } ?? ""
+        return (first + second).uppercased()
+    }
+}
+
+private struct OwedSplitRow: View {
+    let expenseTitle: String
+    let debtor: String
+    let amount: Double
+    let isPaid: Bool
+    let onTogglePaid: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: isPaid ? "checkmark.circle.fill" : "circle")
+                .font(.title3)
+                .foregroundStyle(isPaid ? Color.imessage : Color.pencil)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(debtor) owes \(amount.formatted(.currency(code: "USD")))")
+                    .font(.gaegu(size: 17))
+                    .foregroundStyle(Color.ink)
+                    .strikethrough(isPaid)
+                Text("for \(expenseTitle)")
+                    .font(.gaegu(size: 14))
+                    .foregroundStyle(Color.pencil)
+            }
+
+            Spacer()
+
+            Button(action: onTogglePaid) {
+                Text(isPaid ? "Paid off" : "Mark paid")
+                    .font(.gaegu(size: 14))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(isPaid ? Color.mint.opacity(0.7) : Color.paperSurface)
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Color.ink.opacity(0.55), lineWidth: 1.5))
+                    .foregroundStyle(Color.ink)
+            }
+            .buttonStyle(SoftPressStyle())
+        }
+        .padding(10)
+        .background(Color.paperSurface.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .stroke(Color.ink.opacity(0.35), lineWidth: 1))
+    }
+}
+
+// MARK: - Add Expense Sheet
+
+private struct AddExpenseSheet: View {
+    let roommates: [Roommate]
+    let onCancel: () -> Void
+    let onSave: (ExpenseRecord) -> Void
+
+    @State private var title = ""
+    @State private var amount: Double = 0
+    @State private var paidByID: UUID
+    @State private var splits: [DraftSplit]
+    @State private var errorMessage: String?
+
+    fileprivate struct DraftSplit: Identifiable, Equatable {
+        let id: UUID
+        let roommateID: UUID
+        var roommateName: String
+        var amount: Double
+        var isIncluded: Bool
+    }
+
+    init(roommates: [Roommate], onCancel: @escaping () -> Void, onSave: @escaping (ExpenseRecord) -> Void) {
+        self.roommates = roommates
+        self.onCancel = onCancel
+        self.onSave = onSave
+        let firstID = roommates.first?.id ?? UUID()
+        _paidByID = State(initialValue: firstID)
+        // Default: every roommate except the payer is included with 0 owed.
+        _splits = State(initialValue: roommates.filter { $0.id != firstID }.map {
+            DraftSplit(id: UUID(), roommateID: $0.id, roommateName: $0.name, amount: 0, isIncluded: true)
+        })
+    }
+
+    private var paidByName: String {
+        roommates.first(where: { $0.id == paidByID })?.name ?? roommates.first?.name ?? "Unassigned"
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                PaperWashBackground()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("Add an expense")
+                            .font(.gaegu(size: 30))
+                            .foregroundStyle(Color.ink)
+                        Text("Pick who paid, then how much each housemate owes.")
+                            .font(.gaegu(size: 17))
+                            .foregroundStyle(Color.pencil)
+
+                        labeled("what was it for") {
+                            TextField("Internet bill", text: $title)
+                                .font(.gaegu(size: 22))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 12)
+                                .paperCard(radius: 16)
+                                .textInputAutocapitalization(.sentences)
+                        }
+
+                        labeled("total amount ($)") {
+                            TextField("60.00", value: $amount, format: .number.precision(.fractionLength(2)))
+                                .font(.gaegu(size: 22))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 12)
+                                .paperCard(radius: 16)
+                                .keyboardType(.decimalPad)
+                                .onChange(of: amount) { _, _ in
+                                    redistribute()
+                                }
+                        }
+
+                        labeled("paid by") {
+                            VStack(spacing: 8) {
+                                ForEach(roommates) { roommate in
+                                    PayerRow(
+                                        name: roommate.name,
+                                        isSelected: paidByID == roommate.id,
+                                        onSelect: {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                                paidByID = roommate.id
+                                                rebuildSplits()
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        labeled("who owes what") {
+                            VStack(spacing: 8) {
+                                if splits.isEmpty {
+                                    Text("Need at least one more roommate to split with.")
+                                        .font(.gaegu(size: 16))
+                                        .foregroundStyle(Color.pencil)
+                                } else {
+                                    ForEach($splits) { $split in
+                                        SplitInputRow(split: $split, paidByName: paidByName)
+                                    }
+
+                                    HStack {
+                                        Button("Split evenly") {
+                                            splitEvenly()
+                                        }
+                                        .font(.gaegu(size: 16))
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(Color.butter.opacity(0.6))
+                                        .clipShape(Capsule())
+                                        .overlay(Capsule().stroke(Color.ink.opacity(0.55), lineWidth: 1.5))
+                                        .foregroundStyle(Color.ink)
+                                        Spacer()
+                                        Text("assigned: \(assignedTotal.formatted(.currency(code: "USD")))")
+                                            .font(.gaegu(size: 15))
+                                            .foregroundStyle(Color.pencil)
+                                    }
+                                    .padding(.top, 4)
+                                }
+                            }
+                        }
+
+                        if let errorMessage {
+                            HStack(spacing: 6) {
+                                Text("⚠️")
+                                Text(errorMessage)
+                                    .font(.gaegu(size: 17))
+                            }
+                            .foregroundStyle(Color.coral)
+                        }
+
+                        HStack(spacing: 14) {
+                            Button("Add", action: validateAndSave)
+                                .buttonStyle(StickerButtonStyle())
+                            Button("Cancel", action: onCancel)
+                                .buttonStyle(StickerButtonStyle(variant: .cream))
+                        }
+                    }
+                    .padding(18)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .navigationTitle("New expense")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.paperBg, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+            }
+        }
+    }
+
+    private var assignedTotal: Double {
+        splits.filter(\.isIncluded).map(\.amount).reduce(0, +)
+    }
+
+    private func labeled<Content: View>(_ label: String, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label)
+                .font(.gaegu(size: 16))
+                .foregroundStyle(Color.pencil)
+            content()
+        }
+    }
+
+    private func rebuildSplits() {
+        splits = roommates.filter { $0.id != paidByID }.map {
+            DraftSplit(id: UUID(), roommateID: $0.id, roommateName: $0.name, amount: 0, isIncluded: true)
+        }
+        redistribute()
+    }
+
+    // When the total amount changes, split evenly among the included splitees
+    // unless the user has typed custom amounts (we detect this by checking if
+    // all included rows are currently 0 — if so, we're still in default mode).
+    private func redistribute() {
+        let allZero = splits.filter(\.isIncluded).allSatisfy { $0.amount == 0 }
+        if allZero {
+            splitEvenly()
+        }
+    }
+
+    private func splitEvenly() {
+        let active = splits.filter(\.isIncluded)
+        guard !active.isEmpty else { return }
+        let perPerson = (amount / Double(active.count) * 100).rounded() / 100
+        for index in splits.indices where splits[index].isIncluded {
+            splits[index].amount = perPerson
+        }
+    }
+
+    private func validateAndSave() {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            errorMessage = "Give it a quick name."
+            return
+        }
+        if amount <= 0 {
+            errorMessage = "Enter a real amount."
+            return
+        }
+        let activeSplits = splits.filter(\.isIncluded)
+        if activeSplits.isEmpty {
+            errorMessage = "Pick at least one roommate to split with."
+            return
+        }
+        let total = activeSplits.map(\.amount).reduce(0, +)
+        if abs(total - amount) > 0.01 {
+            errorMessage = "Splits add up to \(total.formatted(.currency(code: "USD"))). Should match the total."
+            return
+        }
+        let record = ExpenseRecord(
+            id: UUID(),
+            title: trimmed,
+            amount: amount,
+            paidBy: paidByName,
+            status: "Unpaid",
+            splitWith: "Custom",
+            splits: activeSplits.map {
+                ExpenseSplit(id: UUID(), roommateName: $0.roommateName, amount: $0.amount, isPaid: false)
+            }
+        )
+        onSave(record)
+    }
+}
+
+private struct PayerRow: View {
+    let name: String
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 12) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? Color.imessage : Color.pencil.opacity(0.6))
+                Text(name)
+                    .font(.gaegu(size: 19))
+                    .foregroundStyle(Color.ink)
+                Spacer()
+            }
+            .padding(12)
+            .background(Color.paperSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isSelected ? Color.imessage : Color.ink.opacity(0.55), lineWidth: isSelected ? 2 : 1.5)
+            )
+        }
+        .buttonStyle(SoftPressStyle())
+    }
+}
+
+private struct SplitInputRow: View {
+    @Binding var split: AddExpenseSheet.DraftSplit
+    let paidByName: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button {
+                split.isIncluded.toggle()
+            } label: {
+                Image(systemName: split.isIncluded ? "checkmark.square.fill" : "square")
+                    .font(.title3)
+                    .foregroundStyle(split.isIncluded ? Color.imessage : Color.pencil.opacity(0.6))
+            }
+            .buttonStyle(SoftPressStyle())
+
+            Text(split.roommateName)
+                .font(.gaegu(size: 18))
+                .foregroundStyle(split.isIncluded ? Color.ink : Color.pencil)
+                .strikethrough(!split.isIncluded)
+
+            Spacer()
+
+            TextField("0.00", value: $split.amount, format: .number.precision(.fractionLength(2)))
+                .font(.gaegu(size: 18))
+                .multilineTextAlignment(.trailing)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .frame(width: 90)
+                .background(Color.paperSurface)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.ink.opacity(0.55), lineWidth: 1.5))
+                .keyboardType(.decimalPad)
+                .disabled(!split.isIncluded)
+        }
     }
 }
 
@@ -2157,7 +2651,7 @@ private struct HybridThreadView: View {
             chores.insert(ChoreRecord(id: UUID(), title: cleanedText, assignee: "Unassigned", status: "Not started", dueDate: "No due date"), at: 0)
             onToast("Chore added")
         case .expense:
-            expenses.insert(ExpenseRecord(id: UUID(), title: cleanedText, amount: inferredAmount(from: cleanedText), paidBy: roommates.first?.name ?? "Unassigned", status: "Unpaid", splitWith: "Everyone"), at: 0)
+            expenses.insert(ExpenseRecord(id: UUID(), title: cleanedText, amount: inferredAmount(from: cleanedText), paidBy: roommates.first?.name ?? "Unassigned", status: "Unpaid", splitWith: "Everyone", splits: []), at: 0)
             onToast("Expense added")
         case .rule:
             page.blocks.append(EditorBlock(id: UUID(), kind: .paragraph, text: cleanedText, checked: false))
@@ -2843,20 +3337,25 @@ private struct ThingEditorSheet: View {
 private struct ToastView: View {
     let message: String
 
+    // The toast sits on top of a hardcoded butter sticker, so the text and
+    // border should stay dark regardless of the user's appearance choice —
+    // otherwise dark-mode `Color.ink` becomes cream and turns light-on-light.
+    private let toastInk = Color(red: 0x2A / 255, green: 0x24 / 255, blue: 0x40 / 255)
+
     var body: some View {
         HStack(spacing: 8) {
             Text("✨").font(.system(size: 16))
             Text(message)
                 .font(.gaegu(size: 18))
-                .foregroundStyle(Color.ink)
+                .foregroundStyle(toastInk)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(Color.butter)
         .clipShape(Capsule())
-        .overlay(Capsule().stroke(Color.ink.opacity(0.85), lineWidth: 1.5))
-        .shadow(color: Color.ink.opacity(0.25), radius: 0, x: 0, y: 4)
-        .shadow(color: Color.ink.opacity(0.15), radius: 12, x: 0, y: 8)
+        .overlay(Capsule().stroke(toastInk.opacity(0.85), lineWidth: 1.5))
+        .shadow(color: toastInk.opacity(0.25), radius: 0, x: 0, y: 4)
+        .shadow(color: toastInk.opacity(0.15), radius: 12, x: 0, y: 8)
         .rotationEffect(.degrees(-2))
     }
 }
@@ -2895,6 +3394,8 @@ private struct SettingsSheet: View {
             .scrollContentBackground(.hidden)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.paperBg, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -2917,8 +3418,15 @@ private struct SettingsSheet: View {
                         onToast("\(name) added")
                     }
                 )
+                .preferredColorScheme(appearance.colorScheme)
             }
         }
+        // Force the sheet's view tree to re-evaluate when the user changes the
+        // appearance from inside Settings. Without this, sheet content keeps
+        // the trait collection it was presented with and the paper background
+        // doesn't flip until the sheet is reopened.
+        .preferredColorScheme(appearance.colorScheme)
+        .id("\(appearance.rawValue)-\(themeName.rawValue)")
     }
 
     private var roommatesSection: some View {
